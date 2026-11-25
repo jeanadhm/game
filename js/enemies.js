@@ -4,6 +4,7 @@ const ETYPES = {
   scout:   { name: 'Éclaireuse', hp: 45,   speed: 5.4, dmg: 8,  reach: 1.7, cd: .85, scale: .92, sight: 28, body: '#6e1608', gaster: '#2e0904', head: .95, legLen: 1.12 },
   soldier: { name: 'Soldate',    hp: 130,  speed: 3.7, dmg: 17, reach: 2.2, cd: 1.2, scale: 1.3, sight: 24, body: '#8a200d', gaster: '#3a0d06', head: 1.45 },
   spitter: { name: 'Cracheuse',  hp: 65,   speed: 3.5, dmg: 10, reach: 1.7, cd: 1.8, scale: 1.02, sight: 32, body: '#94300f', gaster: '#c96a1c', ranged: true },
+  flyer:   { name: 'Ailée',      hp: 50,   speed: 7,   dmg: 10, reach: 1.6, cd: 1.4, scale: .95, sight: 40, body: '#7a1a0a', gaster: '#3a0c06', head: 1, fly: true, nectar: 2 },
   boss:    { name: 'Major Ignis', hp: 1800, speed: 4.4, dmg: 28, reach: 3.9, cd: 1.3, scale: 3.2, sight: 90, body: '#7a1309', gaster: '#250603', head: 1.6, boss: true },
 };
 const EN = { list: [], flowT: 0 };
@@ -12,11 +13,11 @@ const EN = { list: [], flowT: 0 };
 
   EN.clear = () => { for (const e of EN.list) { scene.remove(e.ant.root); e.ant.mats.forEach(m => m.dispose()); } EN.list = []; };
   EN.spawn = (type, x, z, o = {}) => {
-    const d = ETYPES[type], a = buildAnt({ body: d.body, gaster: d.gaster, head: d.head, legLen: d.legLen });
+    const d = ETYPES[type], a = buildAnt({ body: d.body, gaster: d.gaster, head: d.head, legLen: d.legLen, wings: d.fly });
     a.root.scale.setScalar(d.scale); scene.add(a.root);
-    const y = world.groundAt(x, z, 99);
+    const alt = d.fly ? rand(4, 6.5) : 0, y = world.groundAt(x, z, 99) + alt, hp = Math.round(d.hp * diff().hp);
     const e = Object.assign({
-      type, d, ant: a, pos: new T.Vector3(x, y, z), vel: new T.Vector3(), yaw: Math.random() * 6.28, hp: d.hp, max: d.hp,
+      type, d, ant: a, pos: new T.Vector3(x, y, z), vel: new T.Vector3(), vy: 0, alt, ft: Math.random() * 6, mode: 'orbit', mt: rand(2, 4), yaw: Math.random() * 6.28, hp, max: hp,
       alert: false, pend: 0, seen: false, losT: Math.random() * .3, cd: rand(.4, 1.4), atk: 0, home: new T.Vector3(x, y, z), wander: null, wait: 0,
       dead: false, deadT: 0, flash: 0, stun: 0, strafe: Math.random() < .5 ? 1 : -1, strafeT: 0, lastX: x, lastZ: z, b: null,
     }, o);
@@ -56,7 +57,8 @@ const EN = { list: [], flowT: 0 };
   EN.kill = (e, head) => {
     e.dead = true; e.deadT = 0; e.hp = 0; e.ant.setOpen(.5);
     SFX.kill(); G.stats.kills++; if (head) G.stats.heads++;
-    HUD.feed(e.d.name + (head ? ' · tir à la tête' : ''));
+    const nc = e.d.nectar || (e.type === 'scout' ? 1 : e.d.boss ? 0 : 2); if (nc) addNectar(nc);
+    HUD.feed(e.d.name + (head ? ' · tir à la tête' : '') + (nc ? `  +${nc} nectar` : ''));
     if (!e.d.boss) { const r = Math.random(); if (r < .3) PK.spawn('heal', e.pos.x, e.pos.z); else if (r < .42) PK.spawn('seed', e.pos.x, e.pos.z); else if (r < .5) PK.spawn('armor', e.pos.x, e.pos.z); }
     G.event('kill', e);
   };
@@ -67,6 +69,49 @@ const EN = { list: [], flowT: 0 };
       if (d < rr) { EN.damage(e, dmg * (1 - d / rr) + 10, false, p); if (!e.d.boss) { const k = Math.hypot(e.pos.x - p.x, e.pos.z - p.z) || 1; e.vel.x += (e.pos.x - p.x) / k * 8; e.vel.z += (e.pos.z - p.z) / k * 8; } }
     }
   };
+
+  // premier ennemi touché par un rayon (pour le dard et la barre de cible)
+  EN.rayHit = (o, d, max) => {
+    let best = null, bt = max;
+    for (const e of EN.list) {
+      if (e.dead) continue; const s = e.d.scale;
+      V3.copy(e.pos).sub(o); const tc = V3.dot(d); if (tc < -2 * s || tc > bt + 2 * s) continue;
+      e.ant.root.updateMatrixWorld();
+      for (const h of e.ant.hit) {
+        V3.copy(h.p).applyMatrix4(e.ant.root.matrixWorld).sub(o);
+        const t = V3.dot(d), R = h.r * s * 1.1, d2 = V3.lengthSq() - t * t;
+        if (t > 0 && d2 < R * R) { const th = t - Math.sqrt(R * R - d2); if (th < bt) { bt = th; best = { e, head: h.head, dist: th }; } }
+      }
+    }
+    return best;
+  };
+
+  function flyer(e, dt, dist, dx, dz, passive) {
+    const a = e.ant, s = e.d.scale, f = world.floorAt(e.pos.x, e.pos.z), ceil = world.ceilAt(e.pos.x, e.pos.z);
+    e.ft += dt; e.mt -= dt;
+    let tx, tz, ty = f + e.alt, spd = e.d.speed * .5, face = false;
+    if (!e.alert || passive || P.dead) { const ang = e.ft * .45 + e.home.x; tx = e.home.x + Math.cos(ang) * 6 - e.pos.x; tz = e.home.z + Math.sin(ang) * 6 - e.pos.z; }
+    else {
+      const k = dist || 1;
+      if (e.mode === 'orbit') {
+        tx = -dz / k * e.strafe + dx / k * (dist - 9) * .35; tz = dx / k * e.strafe + dz / k * (dist - 9) * .35; ty = P.pos.y + 4.5; spd = e.d.speed * .75;
+        if (e.mt <= 0 && e.seen) { e.mode = 'dive'; e.mt = 1.7; SFX.chitter(dist); }
+      } else if (e.mode === 'dive') {
+        tx = dx; tz = dz; ty = P.pos.y + .45; spd = e.d.speed * 1.6; face = true;
+        if (Math.hypot(dx, P.pos.y + .4 - e.pos.y, dz) < 1.5 && e.cd <= 0) { P.damage(e.d.dmg, e.pos); SFX.bite(); e.cd = e.d.cd; e.mode = 'climb'; e.mt = 1.2; }
+        if (e.mt <= 0) { e.mode = 'climb'; e.mt = 1.2; }
+      } else { tx = -dx; tz = -dz; ty = P.pos.y + 6.5; spd = e.d.speed * .9; if (e.mt <= 0) { e.mode = 'orbit'; e.mt = rand(2.5, 4.5); e.strafe *= -1; } }
+    }
+    if (e.stun > 0) { e.stun -= dt; spd = 0; ty = f + .5; }
+    const hl = Math.hypot(tx, tz) || 1, vy = clamp((ty - e.pos.y) * 2.2, -7, 6);
+    e.vel.x += (tx / hl * spd - e.vel.x) * Math.min(1, dt * 3); e.vel.z += (tz / hl * spd - e.vel.z) * Math.min(1, dt * 3); e.vy += (vy - e.vy) * Math.min(1, dt * 3);
+    world.move(e.pos, e.vel.x * dt, e.vel.z * dt, .4 * s, 60);
+    e.pos.y = clamp(e.pos.y + e.vy * dt, f + .4, ceil - .8);
+    const sp = Math.hypot(e.vel.x, e.vel.z);
+    e.yaw = angLerp(e.yaw, face ? Math.atan2(dx, dz) : sp > .3 ? Math.atan2(e.vel.x, e.vel.z) : e.yaw, dt * 6);
+    a.root.position.copy(e.pos); a.root.rotation.y = e.yaw; a.root.rotation.x = clamp(-e.vy * .08, -.6, .8);
+    a.anim(dt, .5); a.flap(e.ft);
+  }
 
   const mouth = (e, out) => { e.ant.root.updateMatrixWorld(); return out.set(0, .42, .62).applyMatrix4(e.ant.root.matrixWorld); };
   function spitAt(e, speed, spread, dmg) {
@@ -116,6 +161,7 @@ const EN = { list: [], flowT: 0 };
     for (let i = EN.list.length - 1; i >= 0; i--) {
       const e = EN.list[i], a = e.ant, s = e.d.scale;
       if (e.dead) {
+        if (e.d.fly) { const g = world.floorAt(e.pos.x, e.pos.z); if (e.pos.y > g) { e.vy -= 14 * dt; e.pos.y = Math.max(g, e.pos.y + e.vy * dt); } }
         e.deadT += dt; const k = Math.min(1, e.deadT / .35);
         a.root.rotation.z = k * Math.PI; a.root.position.y = e.pos.y + .78 * s * k - Math.max(0, e.deadT - 7) * .4 * s;
         a.setCurl(Math.min(1, e.deadT / 1.2)); a.anim(dt, Math.max(0, 1.5 - e.deadT) * 3);
@@ -134,6 +180,13 @@ const EN = { list: [], flowT: 0 };
       }
       if (e.pend > 0) { e.pend -= dt; if (e.pend <= 0) EN.alert(e); }
       if (!passive && !e.alert && e.seen && (dist < e.d.sight * .6 || e.d.boss)) EN.alert(e);
+      if (e.d.fly) { flyer(e, dt, dist, dx, dz, passive); continue; }
+      if (e.stun > 0 && !e.d.boss) {
+        e.stun -= dt; a.anim(dt, 0); a.setOpen(.4); a.root.rotation.z = Math.sin(e.stun * 40) * .05;
+        for (const m of a.mats) m.emissive.setRGB(.05, .12, .25);
+        if (e.stun <= 0) a.root.rotation.z = 0;
+        continue;
+      }
 
       out.tx = 0; out.tz = 0; out.spd = 0; out.face = false; out.charge = false;
       if (e.d.boss && !passive) boss(e, dt, dist, dx, dz, out);

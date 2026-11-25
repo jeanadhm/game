@@ -121,6 +121,11 @@ const FX = { projs: [], shake: 0 };
     }
   };
 
+  FX.tracer = (a, b) => {
+    const d = b.distanceTo(a), n = Math.min(140, Math.ceil(d / .45));
+    for (let i = 0; i <= n; i++) { const t = i / n; FX.glow.spawn(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), 0, 0, 0, .18 + t * .12, .16, COL.spark); }
+  };
+
   // poussière ambiante autour de la caméra
   FX.motes = (dt, cave) => {
     const n = Math.random() < dt * 25 ? 1 : 0;

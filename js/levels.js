@@ -16,8 +16,10 @@ const LEVELS = [
       ['scout', -15, -42], ['scout', 18, -36], ['scout', -24, -12], ['scout', 6, -16], ['scout', 26, 4], ['scout', -10, 14],
       ['soldier', -9, 36], ['soldier', 11, 38], ['soldier', 2, 44],
       ['spitter', -15, 46], ['spitter', 16, 48], ['spitter', -5, 26],
+      ['flyer', -10, 50], ['flyer', 12, 52], ['flyer', 2, 22],
     ],
-    pickups: [['heal', 4, -50], ['seed', -20, -25], ['heal', 20, -5], ['armor', -14, 8], ['seed', 10, 18], ['heal', -24, 34], ['heal', 26, 34]],
+    pickups: [['heal', 4, -50], ['seed', -20, -25], ['heal', 20, -5], ['armor', -14, 8], ['seed', 10, 18], ['heal', -24, 34], ['heal', 26, 34],
+      ['dart', -4, -58], ['dart', 24, 12], ['nectar', -36, -40], ['nectar', 38, -10], ['nectar', -30, 30]],
     objective: () => 'Atteins l\'entrée de la fourmilière rouge',
     target: L => L.exit,
     events: [
@@ -26,7 +28,8 @@ const LEVELS = [
       { at: 15, run: () => HUD.say(WHO.nyx, IN.touch ? 'Bouton Tir pour cracher l\'acide, Arme pour changer. Pousse le joystick à fond pour courir.' : 'Clic pour cracher l\'acide. 1, 2, 3 pour changer d\'arme. Maj pour courir, Espace pour sauter.') },
       { on: 'alert', say: ['nyx', 'Elles t\'ont repérée ! Vise la tête : l\'acide la ronge deux fois plus vite.'] },
       { on: 'kill', say: ['nyx', 'Belle frappe. Les cadavres laissent parfois du miellat : ça soigne.'] },
-      { when: () => P.pos.z > 12, say: ['nyx', 'La butte rouge est droit devant. Des cracheuses guettent depuis les cailloux.'] },
+      { when: () => P.pos.z > 12, cp: true, say: ['nyx', 'La butte rouge est droit devant. Des cracheuses guettent depuis les cailloux. Attention aux Ailées dans le ciel !'], run: G => G.checkpoint() },
+      { at: 22, run: () => HUD.say(WHO.nyx, IN.touch ? 'Nouveau : le dard (arme 4). Garde le doigt sur Tir pour le charger.' : 'Nouveau : le dard, touche 4. Maintiens le clic pour le charger, relâche pour tirer. Il paralyse.') },
       { when: () => P.pos.z > 40, say: ['reine', 'L\'entrée est au sommet de la butte. Saute dans le trou.'] },
       { when: L => Math.hypot(P.pos.x - L.exit.x, P.pos.z - L.exit.z) < L.exit.r, run: () => G.complete() },
     ],
@@ -67,8 +70,10 @@ const LEVELS = [
       ['spitter', -28, 26], ['spitter', -36, 34], ['soldier', -24, 30],
       ['spitter', 30, 36], ['soldier', 26, 28], ['soldier', 34, 30],
       ['soldier', -3, 52], ['soldier', 3, 54],
+      ['flyer', 30, 32], ['flyer', 26, 36],
     ],
-    pickups: [['heal', 3, -45], ['seed', -4, -12], ['heal', -40, -18], ['seed', -34, -30], ['armor', 38, -14], ['heal', -44, 4], ['heal', 44, 6], ['seed', -30, 34], ['heal', 28, 26], ['armor', -14, 14]],
+    pickups: [['heal', 3, -45], ['seed', -4, -12], ['heal', -40, -18], ['seed', -34, -30], ['armor', 38, -14], ['heal', -44, 4], ['heal', 44, 6], ['seed', -30, 34], ['heal', 28, 26], ['armor', -14, 14],
+      ['dart', 2, -50], ['dart', 34, 30], ['nectar', -44, -28], ['nectar', 42, -24], ['nectar', 34, 38], ['nectar', -38, 36]],
     cocoons: [[-41, -27], [38, -17], [-33, 33]],
     exit: { x: 0, z: 55, r: 3 },
     objective: G => G.cocoons < 3 ? `Retrouve les cocons volés (${G.cocoons}/3)` : 'Rejoins le passage vers la chambre royale',
@@ -80,9 +85,9 @@ const LEVELS = [
     events: [
       { at: 1, say: ['nyx', 'Tu es dans leurs galeries. Ta glande lumineuse éclaire un peu autour de toi.'] },
       { at: 7, say: ['reine', 'Je sens l\'odeur de nos cocons. Ils sont trois, dans trois chambres différentes.'] },
-      { on: 'cocoon', when: (L, G) => G.cocoons === 1, say: ['nyx', 'Un cocon ! Je le ramène à la colonie. Plus que deux.'] },
-      { on: 'cocoon', when: (L, G) => G.cocoons === 2, run: () => { HUD.say(WHO.nyx, 'Attention, elles arrivent par les tunnels !'); for (const [x, z] of [[-4, -30], [-2, -32], [-14, 14], [-12, 12]]) EN.alert(EN.spawn('scout', x, z)); } },
-      { on: 'cocoon', when: (L, G) => G.cocoons === 3, say: ['reine', 'Les trois cocons sont saufs. Maintenant, la chambre royale : le Major Ignis t\'attend.'] },
+      { on: 'cocoon', when: (L, G) => G.cocoons === 1, say: ['nyx', 'Un cocon ! Je le ramène à la colonie. Plus que deux.'], run: G => G.checkpoint() },
+      { on: 'cocoon', when: (L, G) => G.cocoons === 2, run: G => { G.checkpoint(); HUD.say(WHO.nyx, 'Attention, elles arrivent par les tunnels !'); for (const [x, z] of [[-4, -30], [-2, -32], [-14, 14], [-12, 12]]) EN.alert(EN.spawn('scout', x, z)); } },
+      { on: 'cocoon', when: (L, G) => G.cocoons === 3, say: ['reine', 'Les trois cocons sont saufs. Maintenant, la chambre royale : le Major Ignis t\'attend.'], run: G => G.checkpoint() },
       { when: (L, G) => Math.hypot(P.pos.x - L.exit.x, P.pos.z - L.exit.z) < L.exit.r && G.cocoons < 3, repeat: 6, run: () => HUD.notice('Il manque encore des cocons') },
       { when: (L, G) => Math.hypot(P.pos.x - L.exit.x, P.pos.z - L.exit.z) < L.exit.r && G.cocoons >= 3, run: () => G.complete() },
     ],
@@ -106,7 +111,7 @@ const LEVELS = [
     ],
     roots: 90,
     enemies: [['scout', 2, -30], ['scout', -1, -24]],
-    pickups: [['heal', 2, -38], ['seed', -2, -36], ['seed', 1, -20], ['heal', -18, -4], ['heal', 18, -4], ['armor', 0, -10], ['seed', -20, 14], ['seed', 20, 14]],
+    pickups: [['heal', 2, -38], ['seed', -2, -36], ['seed', 1, -20], ['heal', -18, -4], ['heal', 18, -4], ['armor', 0, -10], ['seed', -20, 14], ['seed', 20, 14], ['dart', -1, -32], ['dart', -22, 6], ['dart', 22, 6]],
     objective: G => G.boss ? (G.boss.dead ? 'La chambre est à toi' : 'Abats le Major Ignis') : 'Entre dans la chambre royale',
     target: (L, G) => G.boss ? (G.boss.dead ? null : G.boss.pos) : { x: 0, z: 4 },
     setup: (L, G) => {
@@ -118,12 +123,13 @@ const LEVELS = [
     events: [
       { at: 1, say: ['nyx', 'La chambre royale est au bout de ce tunnel. Je n\'ai jamais vu une soldate aussi grosse qu\'Ignis.'] },
       { when: () => P.pos.z > -12, run: G => {
+        G.checkpoint();
         G.boss = EN.spawn('boss', 0, 12); EN.alert(G.boss); HUD.boss(ETYPES.boss.name, 1); SFX.roar(); FX.shake = 1;
         HUD.say(WHO.ignis, 'Une Noire, ici ? Tu vas nourrir notre couvain.'); HUD.say(WHO.nyx, 'Elle charge en ligne droite : écarte-toi au dernier moment et fais-la percuter un pilier !');
       } },
       { on: 'bossStun', say: ['nyx', 'Elle est sonnée ! Frappe maintenant, elle prend plus de dégâts.'] },
       { on: 'boss60', run: () => { HUD.say(WHO.ignis, 'À moi, mes sœurs !'); for (const [t, x, z] of [['scout', -20, 0], ['scout', 20, 0], ['soldier', -18, 20], ['scout', 18, 20]]) EN.alert(EN.spawn(t, x, z)); } },
-      { on: 'boss30', run: () => { HUD.say(WHO.nyx, 'Elle faiblit ! Encore un effort, Sergent !'); for (const [t, x, z] of [['spitter', -20, 12], ['spitter', 20, 12], ['soldier', 0, -6]]) EN.alert(EN.spawn(t, x, z)); } },
+      { on: 'boss30', run: () => { HUD.say(WHO.nyx, 'Elle faiblit ! Encore un effort, Sergent !'); for (const [t, x, z] of [['spitter', -20, 12], ['spitter', 20, 12], ['soldier', 0, -6], ['flyer', -10, 10], ['flyer', 10, 10]]) EN.alert(EN.spawn(t, x, z)); } },
       { on: 'kill', when: (L, G, e) => e && e.d.boss, run: G => { HUD.boss(null, null); HUD.say(WHO.rouge, 'Assez ! Mes soldates se retirent. Le Ruisseau-Sec sera votre frontière.'); setTimeout(() => G.complete(), 5200); } },
     ],
   },

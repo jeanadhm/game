@@ -5,12 +5,14 @@ FPS 3D jouable dans le navigateur : une soldate fourmi noire affronte la colonie
 ## Jouer
 Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.github.io/game/). Three.js (r128) est chargé depuis un CDN.
 
-Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, 1 · 2 · 3 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
+Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
 
-## Contenu (v0.1)
+## Contenu (v2.0)
 - 3 chapitres : La Prairie (surface), Les Galeries (terriers, 3 cocons à retrouver), La Chambre royale (boss Major Ignis)
-- 3 armes : mandibules, acide formique, graine explosive
-- 4 ennemis : éclaireuse, soldate, cracheuse, boss
+- 4 armes : mandibules, acide formique, graine explosive, dard chargé (paralyse)
+- 5 ennemis : éclaireuse, soldate, cracheuse, Ailée (volante), boss
+- Évolutions entre les chapitres, achetées avec le nectar
+- 3 difficultés, points de sauvegarde, réglage graphique (halo lumineux, ombres)
 - Fourmis anatomiques animées, ombres en temps réel, sons synthétisés, dialogues et récit
 
 ## Structure
@@ -25,6 +27,12 @@ js/fx.js          particules, projectiles, explosions
 js/enemies.js     IA des fourmis rouges et du boss
 js/player.js      joueuse, armes, vue à la première personne, objets
 js/hud.js         interface et commandes
+js/upgrades.js    nectar, évolutions, difficulté, qualité, sauvegarde
+js/post.js        post-traitement (halo lumineux, vignette)
 js/levels.js      chapitres, histoire, scripts
 js/main.js        rendu, états du jeu, boucle principale
 ```
+
+## Versions
+- **v2.0** : dard chargé, Ailées volantes, évolutions au nectar, difficulté, points de sauvegarde, halo lumineux et réglage graphique, barre de vie de la cible
+- **v0.1** : prototype (3 chapitres, 3 armes, 4 ennemis, boss)

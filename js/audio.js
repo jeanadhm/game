@@ -42,6 +42,7 @@ const SFX = (() => {
     step() { noise(.035, 2800 + Math.random() * 1800, 4, .04); },
     chitter(d) { const v = vol(d); if (v <= 0) return; for (let i = 0; i < 5; i++) tone(2200 + Math.random() * 900, 1400, .03, .06 * v, 'square', i * .035); },
     pick() { tone(600, 1200, .12, .2, 'triangle'); tone(900, 1800, .14, .16, 'triangle', .09); },
+    dart(k) { tone(300 + k * 500, 2400, .12, .25, 'sawtooth'); noise(.08, 4000, 2, .15); },
     throwIt() { noise(.18, 700, 1, .15); },
     roar() { tone(140, 45, 1.3, .5, 'sawtooth'); noise(1.1, 300, .8, .4, 'lowpass'); },
     ambient(kind) {

@@ -2,6 +2,8 @@
 // Colonie Noire · modèle de fourmi anatomique (tête, mésosome, pétiole, gastre, 6 pattes articulées, antennes coudées)
 const ANT = { geo: {}, sph: new T.SphereGeometry(1, 22, 16) };
 ANT.sph.userData.keep = true;
+{ const sh = new T.Shape(); sh.moveTo(0, 0); sh.bezierCurveTo(.15, .13, .72, .15, .88, .02); sh.bezierCurveTo(.72, -.1, .2, -.08, 0, 0);
+  ANT.wing = new T.ShapeGeometry(sh, 10); ANT.wing.userData.keep = true; }
 function limbGeo(len, r) {
   const k = len.toFixed(3) + '_' + r.toFixed(3);
   if (!ANT.geo[k]) { const g = new T.CylinderGeometry(r * .6, r, len, 8, 1); g.rotateZ(-Math.PI / 2); g.translate(len / 2, 0, 0); g.userData.keep = true; ANT.geo[k] = g; }
@@ -62,6 +64,15 @@ function buildAnt(o) {
     }
   }
   body.position.y = (ll - 1) * .25;
+  const wings = [];
+  if (o.wings) {
+    const wm = new T.MeshPhysicalMaterial({ color: '#dfe8ff', roughness: .1, transparent: true, opacity: .3, side: T.DoubleSide, clearcoat: 1, depthWrite: false });
+    for (const s of [-1, 1]) for (let k = 0; k < 2; k++) {
+      const p = new T.Group(); p.position.set(s * .06, .47, .12 - k * .1); body.add(p);
+      const m = new T.Mesh(ANT.wing, wm); m.scale.set(s * (k ? .78 : 1.05), 1, 1); m.rotation.x = -Math.PI / 2; p.add(m);
+      p.rotation.y = s * (k ? .6 : .32); wings.push({ p, s, k });
+    }
+  }
 
   let ph = Math.random() * 6, tw = Math.random() * 6, open = 0, openT = .12, curl = 0, lift = 0;
   return {
@@ -74,6 +85,7 @@ function buildAnt(o) {
     setOpen(v) { openT = v; },
     setCurl(v) { curl = v; },
     setLift(v) { lift = v; },
+    flap(t) { for (const w of wings) w.p.rotation.z = w.s * (Math.sin(t * 46 + w.k * .9) * .7 + .15); },
     anim(dt, speed) {
       ph += dt * speed * 7; tw += dt;
       const amp = Math.min(1, speed * .45);

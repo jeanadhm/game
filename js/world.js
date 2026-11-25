@@ -153,6 +153,15 @@ class World {
     return true;
   }
 
+  rayBlock(o, d, max) {
+    for (let t = .3; t < max; t += .35) {
+      const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
+      if (y < this.floorAt(x, z) || (this.cave && y > this.ceilAt(x, z)) || this.wAt(x, z) > .85) return t;
+      for (const c of this.near(x, z)) if (y < c.top && y > c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r) return t;
+    }
+    return max;
+  }
+
   // --- navigation (champ de flux recalculé vers la joueuse)
   buildNav() {
     const nn = this.nn = Math.round(this.S), h = this.half;
@@ -274,7 +283,7 @@ class World {
         transformed.x += cos(uTime * 1.1 + ip.z * .11) * k * .05;`);
     };
     const place = (n, inside, minH, maxH, collide) => {
-      const im = new T.InstancedMesh(geo, mat, n), m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), e = new T.Euler();
+      const tint = new T.Color(), im = new T.InstancedMesh(geo, mat, n), m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), e = new T.Euler();
       let k = 0, tries = 0;
       while (k < n && tries < n * 10) {
         tries++;
@@ -284,7 +293,7 @@ class World {
         const hh = minH + rng() * (maxH - minH), ww = .5 + rng() * .7;
         e.set((rng() - .5) * .25, rng() * 6.28, (rng() - .5) * .25); q.setFromEuler(e); s.set(ww * 1.6, hh, hh * .5);
         p.set(x, (inside ? this.floorAt(x, z) : this.floorAt(clamp(x, -this.half, this.half), clamp(z, -this.half, this.half))) - .2, z);
-        m.compose(p, q, s); im.setMatrixAt(k++, m);
+        m.compose(p, q, s); im.setColorAt(k, tint.setRGB(.8 + rng() * .35, .85 + rng() * .3, .7 + rng() * .25)); im.setMatrixAt(k++, m);
         if (collide) this.addCol(x, z, .22 * ww + .05, p.y + hh * .8);
       }
       im.count = k; return im;
@@ -368,7 +377,7 @@ class World {
     const lights = [];
     for (const f of L.fungus || EMPTY) {
       const col = new T.Color(f.color || '#6dffd6');
-      const capM = new T.MeshStandardMaterial({ color: col.clone().multiplyScalar(.35), emissive: col, emissiveIntensity: .75, roughness: .4 });
+      const capM = new T.MeshStandardMaterial({ color: col.clone().multiplyScalar(.35), emissive: col, emissiveIntensity: .5, roughness: .4 });
       const stM = new T.MeshStandardMaterial({ color: '#8a7f70', emissive: col, emissiveIntensity: .12, roughness: .7 });
       for (let i = 0; i < (f.n || 10); i++) {
         const [x, z] = openSpot(f.x, f.z, f.r || 4), y = this.floorAt(x, z), h = .3 + rng() * 1.1, r = .15 + rng() * .5;

@@ -44,21 +44,37 @@ sun.shadow.bias = -.0004; sun.shadow.normalBias = .03; scene.add(sun, sun.target
 const lamp = new T.PointLight('#ffd7a0', 0, 24, 1.5); scene.add(lamp);
 
 const world = new World(scene);
-FX.init(scene); P.initVM();
+FX.init(scene); P.initVM(); POST.init();
 
-const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, boss: null, queen: null, unlocked: 1, target: null, stats: {} };
+const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
 const resetStats = () => { G.stats = { kills: 0, heads: 0, shots: 0, hits: 0, ahits: 0, time: 0, deaths: 0 }; };
 resetStats();
 
 function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false);
   cam.aspect = w / h; cam.updateProjectionMatrix(); VM.cam.aspect = w / h; VM.cam.updateProjectionMatrix();
-  FX.setScale(h * renderer.getPixelRatio(), cam.fov);
+  FX.setScale(h * renderer.getPixelRatio(), cam.fov); POST.resize(w, h, renderer.getPixelRatio());
+}
+function applyQuality() {
+  const q = QUAL[G.qual];
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.pr));
+  const sh = q.shadow > 0;
+  if (renderer.shadowMap.enabled !== sh || (sh && sun.shadow.mapSize.x !== q.shadow)) {
+    renderer.shadowMap.enabled = sh;
+    if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    if (sh) sun.shadow.mapSize.set(q.shadow, q.shadow);
+    scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
+  }
+  POST.on = q.bloom && !!POST.c;
+  for (const b of document.querySelectorAll('.qual button')) b.classList.toggle('on', +b.dataset.q === G.qual);
+  resize();
 }
 addEventListener('resize', resize); resize();
 
-function loadLevel(i) {
-  const L = LEVELS[i]; Object.assign(G, { li: i, L, lt: 0, fired: new Set(), cool: {}, cocoons: 0, boss: null, queen: null });
+function loadLevel(i, cp) {
+  if (cp && cp.li !== i) cp = null;
+  const L = LEVELS[i]; Object.assign(G, { li: i, L, lt: 0, fired: new Set(), cool: {}, cocoons: 0, taken: cp ? cp.taken.slice() : [], boss: null, queen: null });
+  if (!cp) G.cp = null;
   EN.clear(); PK.clear(); FX.clear(); HUD.boss(null, null); HUD.clearSay();
   world.build(L);
   const cave = L.type === 'cave';
@@ -67,12 +83,22 @@ function loadLevel(i) {
   sun.visible = !cave; hemi.color.set(cave ? '#6a5440' : '#cfe4ff'); hemi.groundColor.set(cave ? '#120c08' : '#5e4a2e'); hemi.intensity = cave ? .34 : .6;
   lamp.intensity = cave ? 1.6 : 0;
   scene.environment = cave ? ENV.cave : ENV.day; VM.scene.environment = scene.environment;
-  renderer.toneMappingExposure = cave ? 1.2 : .95;
+  renderer.toneMappingExposure = cave ? 1.2 : .95; POST.mood(cave);
   for (const [t, x, z] of L.enemies) EN.spawn(t, x, z);
   for (const [t, x, z] of L.pickups || []) PK.spawn(t, x, z);
-  for (const [x, z] of L.cocoons || []) PK.spawn('cocoon', x, z);
+  (L.cocoons || []).forEach(([x, z], idx) => { if (!G.taken.includes(idx)) PK.spawn('cocoon', x, z, { idx }); });
+  G.cocoons = G.taken.length;
   if (L.setup) L.setup(L, G);
-  P.spawn(L); world.flow(P.pos.x, P.pos.z);
+  P.spawn(cp ? { start: { x: cp.x, z: cp.z, yaw: cp.yaw } } : L);
+  if (cp) {
+    // reprise au point de sauvegarde : on ne rejoue pas les dialogues déjà vus
+    L.events.forEach((ev, k) => {
+      if (ev.on === 'cocoon') { for (let c = 1; c <= G.cocoons; c++) { const keep = G.cocoons; G.cocoons = c; if (!ev.when || ev.when(L, G)) G.fired.add(k); G.cocoons = keep; } }
+      else if (!ev.on && (ev.at !== undefined || !ev.run || ev.cp)) G.fired.add(k);
+    });
+    for (const e of EN.list) if (Math.hypot(e.pos.x - cp.x, e.pos.z - cp.z) < 10) { e.pos.x += Math.sign(e.pos.x - cp.x || 1) * 12; e.home.copy(e.pos); }
+  }
+  world.flow(P.pos.x, P.pos.z);
   G.target = () => L.target(L, G);
   HUD.level(L.chapter, L.name); HUD.objective(L.objective(G));
   SFX.ambient(L.type);
@@ -84,6 +110,7 @@ function fireEv(k, ev, data) {
   if (ev.say) HUD.say(WHO[ev.say[0]], ev.say[1]);
   if (ev.run) ev.run(G, data);
 }
+G.checkpoint = () => { G.cp = { li: G.li, x: P.pos.x, z: P.pos.z, yaw: P.yaw, taken: G.taken.slice() }; HUD.notice('Point de sauvegarde', 1.8); };
 G.event = (name, data) => {
   if (G.state !== 'play' || !G.L) return;
   G.L.events.forEach((ev, k) => { if (ev.on === name && !G.fired.has(k) && (!ev.when || ev.when(G.L, G, data))) fireEv(k, ev, data); });
@@ -97,12 +124,14 @@ function runEvents(dt) {
 }
 
 // --- écrans
-const screens = ['title', 'story', 'pause', 'dead', 'end'];
+const screens = ['title', 'story', 'pause', 'dead', 'end', 'evolve'];
 function show(id) { for (const s of screens) $(s).hidden = s !== id; document.body.classList.toggle('playing', !id); }
-function save() { try { localStorage.setItem('cn-unlocked', String(G.unlocked)); } catch (e) {} }
+function save() { SAVE.save(); }
 function chapterButtons() {
   $('chapters').innerHTML = LEVELS.map((L, i) => `<button class="chap" data-i="${i}" ${i >= G.unlocked ? 'disabled' : ''}><b>${L.chapter}</b><span>${i < G.unlocked ? L.name : 'Verrouillé'}</span></button>`).join('');
   for (const b of $('chapters').querySelectorAll('button')) b.onclick = () => { SFX.init(); resetStats(); P.reset(); story(+b.dataset.i); };
+  for (const b of document.querySelectorAll('#diff button')) b.classList.toggle('on', +b.dataset.d === G.diff);
+  $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';
 }
 function titleScreen() {
   G.state = 'title'; HUD.show(false); show('title'); chapterButtons();
@@ -124,13 +153,13 @@ function play() {
 G.pause = () => { if (G.state !== 'play') return; G.state = 'pause'; IN.fire = false; IN.k = {}; show('pause'); HUD.show(false); if (document.pointerLockElement) document.exitPointerLock(); };
 G.die = () => {
   G.state = 'dead'; G.stats.deaths++; IN.fire = false; HUD.show(false);
-  setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); show('dead'); $('deadMsg').textContent = ['Les Rouges t\'ont submergée.', 'Ta chitine a cédé.', 'La colonie compte encore sur toi.'][G.stats.deaths % 3]; }, 900);
+  setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); show('dead'); $('bRetry').textContent = G.cp ? 'Reprendre au point de sauvegarde' : 'Réessayer le chapitre'; $('deadMsg').textContent = ['Les Rouges t\'ont submergée.', 'Ta chitine a cédé.', 'La colonie compte encore sur toi.'][G.stats.deaths % 3]; }, 900);
 };
 G.complete = () => {
   if (G.state !== 'play') return;
   G.state = 'done'; HUD.show(false); if (document.pointerLockElement) document.exitPointerLock();
   G.unlocked = Math.max(G.unlocked, Math.min(LEVELS.length, G.li + 2)); save();
-  if (G.li + 1 < LEVELS.length) { P.reset(); story(G.li + 1); }
+  if (G.li + 1 < LEVELS.length) { const n = G.li + 1; evolveScreen(() => { P.reset(); story(n); }); }
   else {
     show('end'); $('eText').innerHTML = ''; for (const t of EPILOGUE) { const p = document.createElement('p'); p.textContent = t; $('eText').append(p); }
     const s = G.stats, m = Math.floor(s.time / 60), sec = Math.floor(s.time % 60);
@@ -139,11 +168,13 @@ G.complete = () => {
       .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   }
 };
-$('bPlay').onclick = () => { SFX.init(); resetStats(); P.reset(); story(0); };
+$('bPlay').onclick = () => { SFX.init(); resetStats(); resetUpgrades(); SAVE.save(); P.reset(); story(0); };
+for (const b of document.querySelectorAll('#diff button')) b.onclick = () => { G.diff = +b.dataset.d; SAVE.save(); chapterButtons(); };
+for (const b of document.querySelectorAll('.qual button')) b.onclick = () => { G.qual = +b.dataset.q; SAVE.save(); applyQuality(); };
 $('bStart').onclick = play;
 $('bResume').onclick = () => { G.state = 'play'; show(null); HUD.show(true); HUD.lock(); };
 $('bRestart').onclick = () => { P.reset(); loadLevel(G.li); play(); };
-$('bRetry').onclick = () => { P.reset(); loadLevel(G.li); play(); };
+$('bRetry').onclick = () => { P.reset(); loadLevel(G.li, G.cp); play(); };
 for (const id of ['bMenu', 'bMenu2', 'bMenu3']) $(id).onclick = () => { G.L = null; titleScreen(); };
 $('sens').oninput = e => { P.sens = +e.target.value; try { localStorage.setItem('cn-sens', e.target.value); } catch (er) {} };
 
@@ -175,14 +206,16 @@ function frame(now) {
   sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 100); sun.target.updateMatrixWorld();
   lamp.position.copy(cam.position); lamp.position.y += .3;
   sky.position.copy(cam.position);
-  renderer.clear(); renderer.render(scene, cam);
+  renderer.clear(); if (POST.on) POST.c.render(); else renderer.render(scene, cam);
   if (G.state === 'play' || G.state === 'pause') { renderer.clearDepth(); renderer.render(VM.scene, VM.cam); }
 }
 
 // démarrage
 function boot(d) {
-  let u = 1; try { u = +localStorage.getItem('cn-unlocked') || 1; const s = localStorage.getItem('cn-sens'); if (s) { P.sens = +s; $('sens').value = s; } } catch (e) {}
-  G.unlocked = clamp(Math.max(u, (d && d.unlocked) || 1), 1, LEVELS.length);
+  SAVE.load();
+  try { const s = localStorage.getItem('cn-sens'); if (s) { P.sens = +s; $('sens').value = s; } } catch (e) {}
+  G.unlocked = clamp(Math.max(G.unlocked, (d && d.unlocked) || 1), 1, LEVELS.length);
+  applyQuality(); HUD.nectar();
   titleScreen();
   requestAnimationFrame(frame);
 }

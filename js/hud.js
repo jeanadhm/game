@@ -10,7 +10,7 @@ const IN = { k: {}, dx: 0, dy: 0, fire: false, firePress: false, jump: false, ws
     if (k) IN.k[k] = true;
     if (G.state === 'play' && (k || e.code === 'Space')) e.preventDefault();
     if (e.code === 'Space' && !e.repeat) IN.jump = true;
-    if (/^Digit[1-3]$/.test(e.code)) IN.wsel = +e.code.slice(5);
+    if (/^Digit[1-4]$/.test(e.code)) IN.wsel = +e.code.slice(5);
     if ((e.code === 'Escape' || e.code === 'KeyP') && G.state === 'play' && !IN.locked) G.pause();
   });
   addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) IN.k[k] = false; });
@@ -53,7 +53,7 @@ const IN = { k: {}, dx: 0, dy: 0, fire: false, firePress: false, jump: false, ws
 })();
 
 const HUD = (() => {
-  const q = []; let dlgT = 0, typing = null, noticeT = 0, hitT = 0, dmgT = 0, lastHp = -1, lastAr = -1, lastW = '', lastAmmo = '';
+  const q = []; let tgtT = 0, dlgT = 0, typing = null, noticeT = 0, hitT = 0, dmgT = 0, lastHp = -1, lastAr = -1, lastW = '', lastAmmo = '';
   const slots = [...document.querySelectorAll('#slots span')];
   const H = {
     show(v) { $('hud').hidden = !v; $('touch').hidden = !(v && IN.touch); },
@@ -69,6 +69,7 @@ const HUD = (() => {
       dmgT = Math.min(1, dmgT + amt / 30);
       if (ang !== null) { const d = $('dmgDir'); d.style.transform = `rotate(${-ang}rad)`; d.classList.remove('on'); void d.offsetWidth; d.classList.add('on'); }
     },
+    nectar() { $('nect').textContent = UP.nectar; $('nectW').classList.remove('bump'); void $('nectW').offsetWidth; $('nectW').classList.add('bump'); },
     boss(name, frac) { const b = $('boss'); if (frac === null) { b.hidden = true; return; } b.hidden = false; $('bossName').textContent = name; $('bossBar').style.width = (frac * 100) + '%'; },
     update(dt) {
       // dialogues avec effet machine à écrire
@@ -78,10 +79,10 @@ const HUD = (() => {
       if (hitT > 0) { hitT -= dt; if (hitT <= 0) $('hitm').className = ''; }
       dmgT = Math.max(0, dmgT - dt * .8); $('dmg').style.opacity = Math.max(dmgT, P.hp < 30 ? .35 + Math.sin(performance.now() / 300) * .1 : 0);
       const hp = Math.ceil(P.hp), ar = Math.ceil(P.armor);
-      if (hp !== lastHp) { lastHp = hp; $('hpBar').style.width = hp + '%'; $('hpNum').textContent = hp; $('hpBar').classList.toggle('low', hp < 30); }
+      if (hp !== lastHp) { lastHp = hp; $('hpBar').style.width = (hp / P.maxHp * 100) + '%'; $('hpNum').textContent = hp; $('hpBar').classList.toggle('low', hp < 30); }
       if (ar !== lastAr) { lastAr = ar; $('arBar').style.width = ar + '%'; $('arNum').textContent = ar; }
       const w = WEAPONS[P.weapon].name; if (w !== lastW) { lastW = w; $('wName').textContent = w; slots.forEach((s, i) => s.classList.toggle('on', i + 1 === P.weapon)); }
-      const am = P.weapon === 1 ? '∞' : P.weapon === 2 ? Math.floor(P.acid) + '%' : P.seeds + ' / 6';
+      const am = P.weapon === 1 ? '∞' : P.weapon === 2 ? Math.floor(P.acid) + '%' : P.weapon === 3 ? P.seeds + ' / 6' : P.darts + ' / 8';
       if (am !== lastAmmo) { lastAmmo = am; $('wAmmo').textContent = am; }
       $('acidBar').style.width = P.acid + '%';
       // boussole vers l'objectif
@@ -92,7 +93,15 @@ const HUD = (() => {
         $('compass').hidden = false;
       } else $('compass').hidden = true;
       const sp = 6 + Math.min(14, Math.hypot(P.vel.x, P.vel.z) * 1.6) + P.recoil * 6;
-      $('cross').style.setProperty('--g', sp + 'px'); $('cross').dataset.w = P.weapon;
+      $('cross').style.setProperty('--g', sp + 'px'); $('cross').dataset.w = P.weapon; $('cross').style.setProperty('--c', (P.charge * 360) + 'deg');
+      // barre de vie de l'ennemi visé
+      tgtT -= dt;
+      if (tgtT <= 0) {
+        tgtT = .1; const d = new T.Vector3(); cam.getWorldDirection(d);
+        const h = EN.rayHit(cam.position, d, world.rayBlock(cam.position, d, 60));
+        if (h && !h.e.d.boss) { $('target').hidden = false; $('tName').textContent = h.e.d.name + (h.e.stun > 0 ? ' · paralysée' : ''); $('tBar').style.width = Math.max(0, h.e.hp / h.e.max * 100) + '%'; }
+        else $('target').hidden = true;
+      }
     },
   };
   return H;
