@@ -1,6 +1,8 @@
 # Colonie Noire
 
-FPS 3D jouable dans le navigateur : une soldate fourmi noire affronte la colonie rouge pour reprendre trois cocons volés.
+Jeu 3D de fourmis jouable dans le navigateur, avec deux modes :
+- **Mode histoire** : une soldate fourmi noire affronte la colonie rouge pour reprendre trois cocons volés (3 chapitres).
+- **Monde ouvert** : un monde infini à explorer, en surface et sous terre. Tu développes ta colonie, nourris ta Reine, lèves des armées, fais la guerre aux colonies rivales ou t'allies avec elles.
 
 ## Jouer
 Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.github.io/game/). Three.js (r128) est chargé depuis un CDN.
@@ -39,6 +41,10 @@ js/upgrades.js    nectar, évolutions, difficulté, qualité, sauvegarde
 js/post.js        post-traitement (halo lumineux, vignette)
 js/levels.js      chapitres, histoire, scripts
 js/main.js        rendu, états du jeu, boucle principale
+js/openworld.js   monde ouvert infini (génération par morceaux, relief, décor, nourriture)
+js/colony.js      colonies, économie, Reine, chambres, diplomatie, guerres, raids, campagne
+js/openmain.js    monde ouvert : surface et souterrain, récolte, assauts, minicarte, sauvegarde
+js/ui.js          écran de colonie et carte du monde
 models/ant.glb    fourmi (maillage + squelette + animations), générée par tools/build_ant.py
 models/vm.glb     mandibles de la vue à la première personne
 models/nature.glb décor (plantes, pierres, galeries), généré par tools/build_nature.py
@@ -55,6 +61,7 @@ python tools/build_nature.py models
 ```
 
 ## Versions
+- **v5.0** : monde ouvert infini avec colonies, Reine, récolte, chambres, armées, guerres, raids, alliances, campagne
 - **v4.2** : escalade maîtrisée (maintenir C, mode Libre en option), caméra plus stable sur les murs, pistes de fourmis vers l'objectif, repère d'objectif, ombres de contact, nuages, vue épurée
 - **v4.1** : corps entier des fourmis gardé hors des murs et des objets, sorties de paroi, apparition toujours en zone libre, tirs qui touchent une fourmi collée à un mur
 - **v4.0** : escalade de toutes les surfaces, fourmilière modélisée, rochers en bord de carte ; corrections : arches qui bouchaient les tunnels (salle de la reine), ennemies bloquées par les plantes, traversée d'objets

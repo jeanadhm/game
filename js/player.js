@@ -102,7 +102,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
       else if (P.shieldT <= 0) HUD.notice(`Bouclier en recharge : ${Math.ceil(P.shieldCd)} s`, 1);
     }
     if (P.shieldT > 0) { P.shieldT -= dt; if (P.shieldT <= 0) { P.shieldCd = 9; SFX.shield(false); } } else P.shieldCd = Math.max(0, P.shieldCd - dt);
-    const run = (IN.k.run || IN.mrun) && f > .3, spd = (run ? 7.8 : 4.6) * (1 + .07 * UP.lv.pattes) * (P.charge > 0 ? .6 : 1) * (P.shieldT > 0 ? .75 : 1);
+    const run = (IN.k.run || IN.mrun) && f > .3, spd = (run ? 7.8 : 4.6) * (1 + .07 * UP.lv.pattes) * (P.charge > 0 ? .6 : 1) * (P.shieldT > 0 ? .75 : 1) * (P.carry ? (P.carry.heavy ? .55 : .8) : 1);
     const wasGround = P.onGround, vy0 = P.vel.dot(WUP);
     walk(dt, f, st, spd);
     if (P.onGround && !wasGround && vy0 < -4) { P.landT = Math.min(.14, -vy0 * .013); SFX.land(); }

@@ -35,6 +35,9 @@
   <div id="boss" hidden><b id="bossName"></b><div class="track"><div id="bossBar"></div></div></div>
   <div id="dlg" hidden><b id="dlgWho"></b><p id="dlgText"></p></div>
   <div id="allies"></div>
+  <div id="colbar" hidden></div>
+  <canvas id="mini" width="320" height="320" hidden></canvas>
+  <div id="props" hidden></div>
   <div id="notice"></div>
   <div id="prompt" hidden></div>
   <div id="feed"></div>
@@ -44,14 +47,15 @@
 
 <div id="touch" hidden>
   <div id="stick" hidden><i></i></div>
-  <button id="tFire">Tir</button><button id="tJump">Saut</button><button id="tWeap">Arme</button><button id="tShield">Bouclier</button><button id="tClimb">Grimper</button><button id="tOrder">Ordre</button><button id="tRecall">Rappel</button><button id="tPause" aria-label="Pause">II</button>
+  <button id="tFire">Tir</button><button id="tJump">Saut</button><button id="tWeap">Arme</button><button id="tShield">Bouclier</button><button id="tClimb">Grimper</button><button id="tOrder">Ordre</button><button id="tAct">E</button><button id="tCol">Colonie</button><button id="tMap">Carte</button><button id="tRecall">Rappel</button><button id="tPause" aria-label="Pause">II</button>
 </div>
 
 <section class="screen" id="title" hidden>
   <div class="tblock">
     <h1>Colonie Noire</h1>
     <p class="tag">La colonie Rouge a volé nos cocons. Une soldate noire part les reprendre.</p>
-    <button id="bPlay" class="primary">Jouer</button>
+    <button id="bPlay" class="primary">Mode histoire</button>
+    <div class="row2"><button id="bOpenNew" class="primary alt">Monde ouvert · nouvelle partie</button><button id="bOpenCont">Continuer le monde ouvert</button></div>
     <div id="chapters"></div>
     <div class="opts">
       <div class="seg" id="diff"><span>Difficulté</span><button data-d="0">Facile</button><button data-d="1">Normal</button><button data-d="2">Difficile</button></div>
@@ -68,6 +72,7 @@
         <div><dt>1 · 2 · 3 · 4, molette</dt><dd>Mandibules, acide, graine, dard</dd></div>
         <div><dt>Clic droit ou F</dt><dd>Bouclier (temporaire)</dd></div>
         <div><dt>G · R</dt><dd>Ordre à l'escouade · rappel</dd></div>
+        <div><dt>E · Tab · M</dt><dd>Monde ouvert : agir · colonie · carte</dd></div>
         <div><dt>Maj</dt><dd>Courir</dd></div>
         <div><dt>Espace</dt><dd>Sauter, se détacher d'un mur ou du plafond</dd></div>
         <div><dt>Maintenir C</dt><dd>Grimper aux murs et au plafond</dd></div>
@@ -77,6 +82,7 @@
     </details>
     <details class="keys"><summary>Nouveautés</summary>
       <ul>
+        <li><b>v5.0</b> · Monde ouvert infini : ta colonie, ta Reine, récolte, chambres, armées, guerres, alliances, surface et souterrain</li>
         <li><b>v4.2</b> · Escalade maîtrisée (maintenir C), caméra plus stable, pistes de fourmis, repère d'objectif, ombres de contact, nuages</li>
         <li><b>v4.1</b> · Les fourmis ennemies ne s'enfoncent plus dans les murs ni dans les cailloux, et restent toujours touchables</li>
         <li><b>v4.0</b> · Escalade : on grimpe sur les murs, les cailloux, les feuilles et on marche au plafond la tête en bas</li>
@@ -100,7 +106,7 @@
       </ul>
     </details>
   </div>
-  <p class="ver">v4.2</p>
+  <p class="ver">v5.0</p>
 </section>
 
 <section class="screen story" id="story" hidden>
@@ -143,6 +149,22 @@
   </div>
 </section>
 
+<section class="screen" id="colony" hidden>
+  <div class="card wide">
+    <div class="colHead"><h2>Ta colonie</h2><button id="colClose">Fermer · Tab</button></div>
+    <div id="colTabs"><button data-tab="reine">Reine</button><button data-tab="chambres">Chambres</button><button data-tab="armee">Armée</button><button data-tab="diplo">Diplomatie</button><button data-tab="journal">Journal</button></div>
+    <div id="colBody"></div>
+  </div>
+</section>
+
+<section class="screen" id="map" hidden>
+  <div class="card wide">
+    <div class="colHead"><h2>Carte du monde</h2><button id="mapClose">Fermer · M</button></div>
+    <canvas id="mapCv"></canvas>
+    <p class="hint">Vert : ta colonie · rouge : en guerre · bleu : alliée · pointillés : armées en marche.</p>
+  </div>
+</section>
+
 <section class="screen story" id="end" hidden>
   <div class="card">
     <p class="chap">Épilogue</p>
@@ -168,6 +190,7 @@
 <script src="js/audio.js"></script>
 <script src="js/ant.js"></script>
 <script src="js/world.js"></script>
+<script src="js/openworld.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/enemies.js"></script>
 <script src="js/allies.js"></script>
@@ -176,6 +199,9 @@
 <script src="js/upgrades.js"></script>
 <script src="js/post.js"></script>
 <script src="js/levels.js"></script>
+<script src="js/colony.js"></script>
+<script src="js/openmain.js"></script>
+<script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

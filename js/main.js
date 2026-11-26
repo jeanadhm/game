@@ -47,10 +47,10 @@ const sun = new T.DirectionalLight('#fff0d6', 2.3); sun.castShadow = true; sun.s
 sun.shadow.bias = -.0004; sun.shadow.normalBias = .03; scene.add(sun, sun.target);
 const lamp = new T.PointLight('#ffd7a0', 0, 24, 1.5); scene.add(lamp);
 
-const world = new World(scene);
+let world = new World(scene);
 FX.init(scene); P.initVM(); POST.init();
 
-const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, squad: 0, climb: 'assist', cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
+const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, mode: 'story', chapterWorld: null, squad: 0, climb: 'assist', cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
 const resetStats = () => { G.stats = { kills: 0, heads: 0, shots: 0, hits: 0, ahits: 0, time: 0, deaths: 0 }; };
 resetStats();
 
@@ -75,6 +75,15 @@ function applyQuality() {
 }
 addEventListener('resize', resize); resize();
 
+// ambiance : surface (ciel, soleil, brume) ou souterrain (noir, lampe, champignons lumineux)
+function setEnv(cave) {
+  sky.visible = !cave; scene.background = cave ? new T.Color('#030201') : null;
+  scene.fog = cave ? new T.FogExp2('#0b0806', .04) : new T.FogExp2('#c4d6dc', G.mode === 'open' ? .0125 : .0105);
+  sun.visible = !cave; hemi.color.set(cave ? '#6a5440' : '#cfe4ff'); hemi.groundColor.set(cave ? '#120c08' : '#5e4a2e'); hemi.intensity = cave ? .34 : .6;
+  lamp.intensity = cave ? 1.6 : 0;
+  scene.environment = cave ? ENV.cave : ENV.day; VM.scene.environment = scene.environment;
+  renderer.toneMappingExposure = cave ? 1.2 : .95; POST.mood(cave);
+}
 function loadLevel(i, cp) {
   if (cp && cp.li !== i) cp = null;
   const L = LEVELS[i]; Object.assign(G, { li: i, L, lt: 0, fired: new Set(), cool: {}, cocoons: 0, taken: cp ? cp.taken.slice() : [], boss: null, queen: null });
@@ -82,12 +91,7 @@ function loadLevel(i, cp) {
   EN.clear(); PK.clear(); FX.clear(); ALLY.clear(); HUD.boss(null, null); HUD.clearSay(); HUD.prompt('');
   world.build(L);
   const cave = L.type === 'cave';
-  sky.visible = !cave; scene.background = cave ? new T.Color('#030201') : null;
-  scene.fog = cave ? new T.FogExp2('#0b0806', .04) : new T.FogExp2('#c4d6dc', .0105);
-  sun.visible = !cave; hemi.color.set(cave ? '#6a5440' : '#cfe4ff'); hemi.groundColor.set(cave ? '#120c08' : '#5e4a2e'); hemi.intensity = cave ? .34 : .6;
-  lamp.intensity = cave ? 1.6 : 0;
-  scene.environment = cave ? ENV.cave : ENV.day; VM.scene.environment = scene.environment;
-  renderer.toneMappingExposure = cave ? 1.2 : .95; POST.mood(cave);
+  setEnv(cave);
   for (const [t, x, z] of L.enemies) EN.spawn(t, x, z);
   for (const [t, x, z] of L.pickups || []) PK.spawn(t, x, z);
   if (!cave && world.highSpots) world.highSpots.slice(0, 5).forEach(h => PK.spawn('nectar', h.x, h.z));
@@ -139,6 +143,7 @@ function chapterButtons() {
   for (const b of document.querySelectorAll('#diff button')) b.classList.toggle('on', +b.dataset.d === G.diff);
   for (const b of document.querySelectorAll('#squad button')) b.classList.toggle('on', +b.dataset.s === G.squad);
   for (const b of document.querySelectorAll('.climbSeg button')) b.classList.toggle('on', b.dataset.c === G.climb);
+  $('bOpenCont').disabled = !OW.hasSave(); $('bRestart').hidden = false;
   $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';
 }
 function titleScreen() {
@@ -186,8 +191,15 @@ function play() {
   SFX.init(); G.state = 'play'; show(null); HUD.show(true); if (!IN.locked) HUD.lock();
   if (IN.noLock && !IN.touch) HUD.notice('Souris libre : Échap ou P pour la pause', 3);
 }
-G.pause = () => { if (G.state !== 'play') return; G.state = 'pause'; IN.fire = false; IN.k = {}; show('pause'); HUD.show(false); if (document.pointerLockElement) document.exitPointerLock(); };
+G.pause = () => { if (G.state !== 'play') return; $('bRestart').hidden = G.mode === 'open'; G.state = 'pause'; IN.fire = false; IN.k = {}; show('pause'); HUD.show(false); if (document.pointerLockElement) document.exitPointerLock(); };
 G.die = () => {
+  if (G.mode === 'open') {
+    // monde ouvert : on se réveille à la fourmilière, sans ce qu'on portait
+    OW.dropCarry(); G.stats.deaths++; HUD.notice('Tu es tombée… les ouvrières te ramènent à la fourmilière', 3);
+    COL.player.food = Math.max(0, COL.player.food - 10);
+    setTimeout(() => { P.reset(); if (OW.mode === 'nest' && !OW.nestCol.player) OW.exitNest(); if (OW.mode === 'nest') P.spawn(world.L); else P.spawn({ start: { x: COL.player.x, z: COL.player.z + 22, yaw: 0 } }); P.dead = false; }, 1800);
+    return;
+  }
   G.state = 'dead'; G.stats.deaths++; IN.fire = false; HUD.show(false);
   setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); show('dead'); $('bRetry').textContent = G.cp ? 'Reprendre au point de sauvegarde' : 'Réessayer le chapitre'; $('deadMsg').textContent = ['Les Rouges t\'ont submergée.', 'Ta chitine a cédé.', 'La colonie compte encore sur toi.'][G.stats.deaths % 3]; }, 900);
 };
@@ -213,7 +225,9 @@ for (const b of document.querySelectorAll('#squad button')) b.onclick = () => { 
 $('bResume').onclick = () => { G.state = 'play'; show(null); HUD.show(true); HUD.lock(); };
 $('bRestart').onclick = () => { P.reset(); loadLevel(G.li); play(); };
 $('bRetry').onclick = () => { P.reset(); loadLevel(G.li, G.cp); play(); };
-for (const id of ['bMenu', 'bMenu2', 'bMenu3']) $(id).onclick = () => { G.L = null; titleScreen(); };
+for (const id of ['bMenu', 'bMenu2', 'bMenu3']) $(id).onclick = () => { if (G.mode === 'open') OW.stop(); G.L = null; titleScreen(); };
+$('bOpenNew').onclick = () => { SFX.init(); show(null); OW.start(false); play(); };
+$('bOpenCont').onclick = () => { SFX.init(); show(null); OW.start(true); play(); };
 $('sens').oninput = e => { P.sens = +e.target.value; try { localStorage.setItem('cn-sens', e.target.value); } catch (er) {} };
 
 // --- caméra du titre : travelling au ras du sol, entre les brins d'herbe
@@ -231,7 +245,7 @@ function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; G.time += dt;
   if (G.state === 'play') {
     G.lt += dt; G.stats.time += dt;
-    P.update(dt); EN.update(dt, false); ALLY.update(dt); PK.update(dt); FX.update(dt); runEvents(dt);
+    P.update(dt); if (G.mode === 'open') OW.update(dt); EN.update(dt, false); ALLY.update(dt); PK.update(dt); FX.update(dt); runEvents(dt);
     { const tg = G.target && G.target(); if (tg && Math.random() < dt * 10) { const ty = world.groundAt(tg.x, tg.z, (tg.y ?? 99) + 2); FX.glow.spawn(tg.x + rand(-.5, .5), ty + .2, tg.z + rand(-.5, .5), 0, rand(1.5, 3), 0, rand(1.5, 2.5), rand(.15, .3), FX.COL.spark, { a: .5 }); } }
     if (POST.bokeh && POST.on) { const d = new T.Vector3(); cam.getWorldDirection(d); const wb = world.rayBlock(cam.position, d, 60), h = EN.rayHit(cam.position, d, wb); POST.focus(h ? h.dist : wb, dt); }
     if (G.L.tick) G.L.tick(dt, G);
@@ -256,6 +270,7 @@ function frame(now) {
 
 // démarrage
 function boot(d) {
+  G.chapterWorld = world;
   SAVE.load();
   try { const s = localStorage.getItem('cn-sens'); if (s) { P.sens = +s; $('sens').value = s; } } catch (e) {}
   G.unlocked = clamp(Math.max(G.unlocked, (d && d.unlocked) || 1), 1, LEVELS.length);

@@ -11,7 +11,11 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
     if (G.state === 'play' && (k || e.code === 'Space')) e.preventDefault();
     if (e.code === 'Space' && !e.repeat) IN.jump = true;
     if (/^Digit[1-4]$/.test(e.code)) IN.wsel = +e.code.slice(5);
-    if (e.code === 'KeyF' || e.code === 'KeyE') IN.shieldPress = true;
+    if (e.code === 'KeyF') IN.shieldPress = true;
+    if (e.code === 'KeyE' && !e.repeat) { if (G.mode === 'open') OW.interact(); else IN.shieldPress = true; }
+    if (e.code === 'Tab' && G.mode === 'open') { e.preventDefault(); UI.toggle(); }
+    if (e.code === 'KeyM' && !e.repeat && G.mode === 'open') UI.map();
+    if (e.code === 'Escape' && (G.state === 'colony' || G.state === 'map')) UI.close();
     if (G.state === 'play' && e.code === 'KeyG' && !e.repeat) ALLY.command();
     if (G.state === 'play' && e.code === 'KeyR' && !e.repeat) ALLY.recall();
     if ((e.code === 'Escape' || e.code === 'KeyP') && G.state === 'play' && !IN.locked) G.pause();
@@ -56,6 +60,9 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
   hold('tShield', () => { IN.shieldPress = true; });
   $('tClimb').addEventListener('pointerdown', e => { e.stopPropagation(); IN.k.climb = !IN.k.climb; $('tClimb').classList.toggle('on', !!IN.k.climb); });
   hold('tOrder', () => ALLY.command());
+  hold('tAct', () => OW.interact());
+  hold('tCol', () => UI.toggle());
+  hold('tMap', () => UI.map());
   hold('tRecall', () => ALLY.recall());
   hold('tPause', () => G.pause());
 })();
@@ -78,6 +85,7 @@ const HUD = (() => {
       if (ang !== null) { const d = $('dmgDir'); d.style.transform = `rotate(${-ang}rad)`; d.classList.remove('on'); void d.offsetWidth; d.classList.add('on'); }
     },
     allies() {
+      if (ALLY.list.length > 3) { const dn = ALLY.list.filter(a => a.down).length, hp = ALLY.list.reduce((s, a) => s + a.hp / a.max, 0) / ALLY.list.length; $('allies').innerHTML = `<div class="order">Armée : <b>${ALLY.list.length} soldates</b>${dn ? ` · ${dn} à terre` : ''} · ${ORDERS[ALLY.order]} <small>${IN.touch ? '' : 'G ordre · R rappel'}</small></div><div class="ally"><span>Santé</span><div class="track"><div style="width:${hp * 100}%"></div></div></div>`; return; }
       $('allies').innerHTML = (ALLY.list.length ? `<div class="order">Escouade : <b>${ORDERS[ALLY.order]}</b> <small>${IN.touch ? '' : 'G ordre · R rappel'}</small></div>` : '') + ALLY.list.map(a => `<div class="ally${a.down ? ' down' : ''}"><span></span><div class="track"><div style="width:${a.hp / a.max * 100}%"></div></div></div>`).join('');
       [...$('allies').querySelectorAll('.ally span')].forEach((el, i) => el.textContent = ALLY.list[i].name + (ALLY.list[i].down ? ' · à terre' : ''));
     },

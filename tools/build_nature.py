@@ -504,6 +504,26 @@ def acol(co, no):
     return c
 OBJS.append(build('anthill', bm, acol))
 
+# ------------------------------------------------------------------ scarabée mort, sur le dos (proie à ramener à la colonie, longueur 1)
+bm = bmesh.new()
+for v in lump(bm, (0, 0, .16), 1, 3.3, detail=3):                         # élytres bombées (dessous visible car retourné)
+    v.co.x *= .3 / 1; v.co.y *= .5; v.co.z = .16 + (v.co.z - .16) * .2
+    v.co.z += .03 * math.cos(v.co.x * 20)                                  # sillons
+lump(bm, (0, -.5, .14), .14, 1.2, detail=2, flat=.7)                       # pronotum
+lump(bm, (0, -.66, .12), .08, 2.2, detail=2, flat=.8)                      # tête
+for s in (-1, 1):
+    for i, y in enumerate((-.42, -.2, .05)):                               # pattes repliées vers le haut
+        a0 = Vector((s * .16, y, .2)); k1 = a0 + Vector((s * .16, -.05, .14)); f = k1 + Vector((-s * .04, .12, .1))
+        tube(bm, [a0, k1, f], lambda j, t, aa: .022 * (1 - .4 * t), k=6)
+    tube(bm, [Vector((s * .04, -.72, .12)), Vector((s * .12, -.86, .16)), Vector((s * .2, -.9, .2))], lambda j, t, aa: .01, k=5)
+
+def bcol(co, no):
+    c = mix(C(40, 32, 26), C(70, 52, 30), noise.noise(co * 12) + .5)
+    if no.z > .3 and abs(co.x) < .28 and -.45 < co.y < .5:
+        c = mix(c, C(90, 70, 40), .4)
+    return c
+OBJS.append(build('beetle', bm, bcol))
+
 # ------------------------------------------------------------------ export
 for o in OBJS:
     o.location = (0, 0, 0)

@@ -6,6 +6,8 @@ const ETYPES = {
   spitter: { name: 'Cracheuse',  hp: 65,   speed: 3.5, dmg: 10, reach: 1.7, cd: 1.8, scale: 1.02, sight: 32, body: '#94300f', gaster: '#c96a1c', ranged: true },
   flyer:   { name: 'Ailée',      hp: 50,   speed: 7,   dmg: 10, reach: 1.6, cd: 1.4, scale: .95, sight: 40, body: '#7a1a0a', gaster: '#3a0c06', head: 1, fly: true, nectar: 2 },
   mega:    { name: 'Méga-soldate', hp: 700, speed: 3.1, dmg: 26, reach: 3.4, cd: 1.6, scale: 2.3, sight: 34, body: '#4a0d06', gaster: '#1e0503', head: 1.7, armored: true, nectar: 8 },
+  worker:  { name: 'Ouvrière',   hp: 25,   speed: 4.6, dmg: 4,  reach: 1.4, cd: 1,   scale: .75, sight: 16, body: '#7a1a0a', gaster: '#2e0904', head: .9, nectar: 1 },
+  queen:   { name: 'Reine',      hp: 1300, speed: 0,   dmg: 22, reach: 5,   cd: 1.6, scale: 4.2, sight: 40, body: '#7a1a0a', gaster: '#2e0904', head: 1.1, queen: true, nectar: 20 },
   boss:    { name: 'Major Ignis', hp: 1800, speed: 4.4, dmg: 28, reach: 3.9, cd: 1.3, scale: 3.2, sight: 90, body: '#7a1309', gaster: '#250603', head: 1.6, boss: true },
 };
 const EN = { list: [], flowT: 0 };
@@ -16,7 +18,7 @@ const EN = { list: [], flowT: 0 };
 
   EN.clear = () => { for (const e of EN.list) { scene.remove(e.ant.root); e.ant.mats.forEach(m => m.dispose()); } EN.list = []; };
   EN.spawn = (type, x, z, o = {}) => {
-    const d = ETYPES[type], a = buildAnt({ body: d.body, gaster: d.gaster, head: d.head, legLen: d.legLen, wings: d.fly });
+    const d = ETYPES[type], a = buildAnt({ body: o.body || d.body, gaster: o.gaster || d.gaster, head: d.head, legLen: d.legLen, wings: d.fly, gasterScale: d.queen ? 2 : undefined });
     a.root.scale.setScalar(d.scale); scene.add(a.root);
     if (d.armored) for (const m of a.mats) { m.clearcoat = 1; m.roughness = .18; m.metalness = .25; }
     [x, z] = world.openNear(x, z, d.scale);
@@ -72,6 +74,7 @@ const EN = { list: [], flowT: 0 };
   }
   EN.damage = (e, amt, head, from, rear) => {
     if (e.dead) return;
+    if (e.col && !COL.isWar(e.col)) { COL.provoke(e.col); e.neutral = false; }
     if (e.d.armored && !rear && frontal(e, from)) {
       amt *= .25; head = false; SFX.clang(); FX.splash(V1.copy(e.pos).setY(e.pos.y + .6 * e.d.scale), FX.COL.spark, 6, 2);
       if (!e.warned) { e.warned = true; HUD.notice('Blindée devant : vise son gastre, par l\'arrière ou d\'en haut !', 2.6); }
@@ -87,9 +90,10 @@ const EN = { list: [], flowT: 0 };
   EN.kill = (e, head) => {
     e.dead = true; e.deadT = 0; e.hp = 0; e.ant.setOpen(.5);
     SFX.kill(); G.stats.kills++; if (head) G.stats.heads++;
+    if (e.col) { const c = COL.get(e.col); if (c) { const k = e.type === 'worker' ? 'workers' : 'soldiers'; c[k] = Math.max(0, c[k] - 1); } }
     const nc = e.d.nectar || (e.type === 'scout' ? 1 : e.d.boss ? 0 : 2); if (nc) addNectar(nc);
     HUD.feed(e.d.name + (head ? ' · tir à la tête' : '') + (nc ? `  +${nc} nectar` : ''));
-    if (!e.d.boss) { const r = Math.random(); if (r < .3 || e.d.armored) PK.spawn('heal', e.pos.x, e.pos.z); else if (r < .42) PK.spawn('seed', e.pos.x, e.pos.z); else if (r < .5) PK.spawn('armor', e.pos.x, e.pos.z); }
+    if (!e.d.boss && !e.d.queen) { const r = Math.random(); if (r < .3 || e.d.armored) PK.spawn('heal', e.pos.x, e.pos.z); else if (r < .42) PK.spawn('seed', e.pos.x, e.pos.z); else if (r < .5) PK.spawn('armor', e.pos.x, e.pos.z); }
     G.event('kill', e);
   };
   EN.radial = (p, R, dmg) => {
@@ -216,8 +220,9 @@ const EN = { list: [], flowT: 0 };
       }
       e.flash = Math.max(0, e.flash - dt * 5); for (const m of a.mats) m.emissive.setRGB(e.flash * .9, e.flash * .25, 0);
       e.cd -= dt; e.losT -= dt; e.tgtT -= dt;
+      e.neutral = !!e.col && !COL.isWar(e.col);
       if (!passive && e.tgtT <= 0) { e.tgtT = .4; pickTarget(e); }
-      const t = passive ? null : e.tgt && !(e.tgt.dead || e.tgt.down) ? e.tgt : null;
+      const t = passive || e.neutral ? null : e.tgt && !(e.tgt.dead || e.tgt.down) ? e.tgt : null;
       const dx = t ? t.pos.x - e.pos.x : 0, dz = t ? t.pos.z - e.pos.z : 0, dist = t ? Math.hypot(dx, dz) : 1e9;
       if (!t) e.seen = false;
       else if (e.losT <= 0) {
@@ -226,7 +231,8 @@ const EN = { list: [], flowT: 0 };
         if (e.seen) { e.lastX = t.pos.x; e.lastZ = t.pos.z; }
       }
       if (e.pend > 0) { e.pend -= dt; if (e.pend <= 0) EN.alert(e); }
-      if (!passive && !e.alert && e.seen && (dist < e.d.sight * .6 || e.d.boss)) EN.alert(e);
+      if (e.neutral) e.alert = false;
+      else if (!passive && !e.alert && e.seen && (dist < e.d.sight * .6 || e.d.boss || e.d.queen)) EN.alert(e);
       if (e.d.fly) { flyer(e, dt, t, dist, dx, dz, passive); continue; }
       if (e.stun > 0 && !e.d.boss) {
         e.stun -= dt; a.anim(dt, 0, null); a.setOpen(.4); a.root.rotation.z = Math.sin(e.stun * 40) * .05;
@@ -236,7 +242,14 @@ const EN = { list: [], flowT: 0 };
       }
 
       out.tx = 0; out.tz = 0; out.spd = 0; out.face = false; out.charge = false;
-      if (e.d.boss && t) boss(e, dt, t, dist, dx, dz, out);
+      if (e.d.queen) {
+        // reine ennemie : immobile, mord ce qui s'approche et appelle des gardes
+        out.spd = 0; out.face = !!t && dist < 14;
+        if (t && dist < e.d.reach && e.atk <= 0 && e.cd <= 0) { e.atk = .5; a.setOpen(.8); }
+        e.guardT = (e.guardT || 8) - dt;
+        if (t && e.guardT <= 0 && EN.list.filter(o => !o.dead && o.col === e.col).length < 16) { e.guardT = 14; for (let k = 0; k < 2; k++) EN.alert(EN.spawn(Math.random() < .3 ? 'spitter' : 'soldier', e.pos.x + rand(-6, 6), e.pos.z - 6, { col: e.col, body: e.body, gaster: e.gaster })); SFX.roar(); }
+      }
+      else if (e.d.boss && t) boss(e, dt, t, dist, dx, dz, out);
       else if (!e.alert || !t) {
         e.wait -= dt;
         if (!e.wander || Math.hypot(e.wander[0] - e.pos.x, e.wander[1] - e.pos.z) < .8) {
