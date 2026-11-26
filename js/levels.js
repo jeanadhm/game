@@ -12,7 +12,7 @@ const LEVELS = [
     cine: [[6, 3, -84, 0, 2, -62], [-14, 7, -48, 0, 3, -20], [-10, 12, -6, 0, 8, 40], [8, 16, 26, 0, 9, 58]], cineDur: 10,
     cineText: ['La prairie du Ruisseau-Sec', 'Des éclaireuses rouges patrouillent entre les brins', 'Au nord, la fourmilière rouge'],
     mound: { x: 0, z: 60, r: 21, h: 9 }, exit: { x: 0, z: 60, r: 2.6 },
-    clear: [[0, -72, 9], [0, 60, 6]],
+    clear: [[0, -72, 9], [0, 60, 23]],
     rocks: [[-15, 46, 5], [16, 48, 5.5], [-5, 26, 4], [22, 22, 6], [-26, -4, 7]],
     enemies: [
       ['scout', -15, -42], ['scout', 18, -36], ['scout', -24, -12], ['scout', 6, -16], ['scout', 26, 4], ['scout', -10, 14],

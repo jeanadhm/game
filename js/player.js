@@ -7,7 +7,7 @@ const WEAPONS = [null,
   { name: 'Dard', desc: 'Maintiens pour charger, relâche pour tirer' },
 ];
 const P = {
-  pos: new T.Vector3(), vel: new T.Vector3(), yaw: 0, pitch: 0, hp: 100, armor: 50, onGround: true,
+  pos: new T.Vector3(), vel: new T.Vector3(), up: new T.Vector3(0, 1, 0), fwd: new T.Vector3(0, 0, -1), camQ: new T.Quaternion(), yaw: 0, pitch: 0, hp: 100, armor: 50, onGround: true,
   weapon: 2, acid: 100, seeds: 3, darts: 4, charge: 0, maxHp: 100, shieldT: 0, shieldCd: 0, shieldHp: 0, landT: 0, cd: 0, biteT: 0, bobT: 0, stepS: 0, dead: false, regen: 0, switchT: 0, recoil: 0, sens: 1, glowT: 0,
 };
 const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20), root: new T.Group(), mand: [], antn: [] };
@@ -61,6 +61,8 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
   };
   P.spawn = L => {
     const s = L.start; P.pos.set(s.x, world.groundAt(s.x, s.z, 99), s.z); P.vel.set(0, 0, 0); P.yaw = s.yaw; P.pitch = 0;
+    P.up.set(0, 1, 0); P.fwd.set(-Math.sin(s.yaw), 0, -Math.cos(s.yaw)); P.onGround = true;
+    P.camQ.setFromEuler(new T.Euler(0, s.yaw, 0, 'YXZ'));
     P.dead = false; P.cd = 0; P.biteT = 0;
   };
   P.reset = () => { P.shieldT = 0; P.shieldCd = 0; P.maxHp = 100 + 10 * UP.lv.chitine; P.hp = P.maxHp; P.armor = 50 + 15 * UP.lv.chitine; P.acid = 100; P.seeds = 3; P.darts = 4; P.charge = 0; P.weapon = 2; };
@@ -85,7 +87,8 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
 
   P.update = dt => {
     // visée
-    P.yaw -= IN.dx * .0022 * P.sens; P.pitch -= IN.dy * .0022 * P.sens; IN.dx = IN.dy = 0;
+    const yawD = -IN.dx * .0022 * P.sens; P.pitch -= IN.dy * .0022 * P.sens; IN.dx = IN.dy = 0;
+    if (yawD) P.fwd.applyAxisAngle(P.up, yawD);
     P.pitch = clamp(P.pitch, -1.45, 1.45);
     if (IN.wsel) { P.select(IN.wsel); IN.wsel = 0; }
     if (IN.wheel) { P.select(((P.weapon - 1 + IN.wheel % 4 + 4) % 4) + 1); IN.wheel = 0; }
@@ -100,32 +103,26 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     }
     if (P.shieldT > 0) { P.shieldT -= dt; if (P.shieldT <= 0) { P.shieldCd = 9; SFX.shield(false); } } else P.shieldCd = Math.max(0, P.shieldCd - dt);
     const run = (IN.k.run || IN.mrun) && f > .3, spd = (run ? 7.8 : 4.6) * (1 + .07 * UP.lv.pattes) * (P.charge > 0 ? .6 : 1) * (P.shieldT > 0 ? .75 : 1);
-    const sy = Math.sin(P.yaw), cy = Math.cos(P.yaw);
-    const tx = (-sy * f + cy * st) * spd, tz = (-cy * f - sy * st) * spd;
-    const acc = P.onGround ? 11 : 2.5;
-    P.vel.x += (tx - P.vel.x) * Math.min(1, dt * acc); P.vel.z += (tz - P.vel.z) * Math.min(1, dt * acc);
-    if (IN.jump) { if (P.onGround) { P.vel.y = 6.9 * (1 + .05 * UP.lv.pattes); P.onGround = false; SFX.step(); } IN.jump = false; }
-    P.vel.y -= 16 * dt;
-    world.move(P.pos, P.vel.x * dt, P.vel.z * dt, .42, .55);
-    const ground = world.groundAt(P.pos.x, P.pos.z, P.pos.y);
-    const wasGround = P.onGround;
-    P.pos.y += P.vel.y * dt;
-    if (P.pos.y <= ground) { P.pos.y = ground; if (!wasGround && P.vel.y < -4) { P.landT = Math.min(.14, -P.vel.y * .013); SFX.land(); } if (P.vel.y < 0) P.vel.y = 0; P.onGround = true; }
-    else if (wasGround && P.vel.y <= 0 && P.pos.y - ground < .4) { P.pos.y = ground; P.vel.y = 0; P.onGround = true; }
-    else P.onGround = false;
-    if (world.cave) { const c = world.ceilAt(P.pos.x, P.pos.z); if (P.pos.y + .8 > c) { P.pos.y = Math.max(ground, c - .8); P.vel.y = Math.min(P.vel.y, 0); } }
-    // balancement de la tête + bruits de pas
-    // pas : un appui toutes les 0,5 unité, la tête plonge à chaque pas et se balance d'un côté à l'autre
-    const hs = Math.hypot(P.vel.x, P.vel.z);
+    const wasGround = P.onGround, vy0 = P.vel.dot(WUP);
+    walk(dt, f, st, spd);
+    if (P.onGround && !wasGround && vy0 < -4) { P.landT = Math.min(.14, -vy0 * .013); SFX.land(); }
+    // cap de la boussole et des alliées : direction du regard projetée à l'horizontale
+    if (Math.abs(P.fwd.y) < .97) P.yaw = Math.atan2(-P.fwd.x, -P.fwd.z);
+    // pas : la tête plonge à chaque appui et se balance d'un côté à l'autre
+    const hs = P.onGround ? P.vel.length() : 0;
     if (P.onGround && hs > .3) { P.bobT += hs * dt / .5 * Math.PI; const s = Math.floor(P.bobT / Math.PI); if (s !== P.stepS) { P.stepS = s; SFX.step(); if (run) SFX.tap(1.2); } }
     else P.bobT = Math.round(P.bobT / Math.PI) * Math.PI * .1 + P.bobT * .9;
     const bob = P.onGround ? Math.min(1, hs / 5) : 0;
     P.landT = Math.max(0, P.landT - dt * .9);
     const dip = -Math.abs(Math.sin(P.bobT)) * .045 * bob - P.landT, sway = Math.sin(P.bobT * .5) * .025 * bob;
-    cam.position.set(P.pos.x + Math.cos(P.yaw) * sway, P.pos.y + .66 + dip, P.pos.z - Math.sin(P.yaw) * sway);
+    RT.crossVectors(P.fwd, P.up).normalize();
+    cam.position.copy(P.pos).addScaledVector(P.up, .66 + dip).addScaledVector(RT, sway);
     const fov = run && hs > 5 ? 82 : 74; if (Math.abs(cam.fov - fov) > .05) { cam.fov += (fov - cam.fov) * Math.min(1, dt * 6); cam.updateProjectionMatrix(); FX.setScale(renderer.domElement.height, cam.fov); }
-    E.set(P.pitch + (Math.random() - .5) * FX.shake * .03 + P.landT * .3, P.yaw + (Math.random() - .5) * FX.shake * .03, Math.sin(P.bobT * .5) * .01 * bob);
-    cam.quaternion.setFromEuler(E);
+    // orientation de la caméra : repère de la surface (droite, normale, avant), lissé, puis tangage
+    Mb.makeBasis(RT, P.up, O.copy(P.fwd).negate()); Qb.setFromRotationMatrix(Mb);
+    P.camQ.slerp(Qb, Math.min(1, dt * 12));
+    E.set(P.pitch + (Math.random() - .5) * FX.shake * .03 + P.landT * .3, (Math.random() - .5) * FX.shake * .03, Math.sin(P.bobT * .5) * .01 * bob);
+    cam.quaternion.copy(P.camQ).multiply(Qc.setFromEuler(E));
     // armes
     P.cd -= dt; P.regen -= dt; P.switchT = Math.max(0, P.switchT - dt);
     if (P.regen <= 0) P.acid = Math.min(100, P.acid + 16 * (1 + .25 * UP.lv.acide) * dt);
@@ -155,6 +152,65 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     IN.firePress = false;
     animVM(dt, bob, hs);
   };
+
+  // --- marche sur toutes les surfaces : sol, pentes, murs, plafonds, cailloux, feuilles, champignons
+  const WUP = new T.Vector3(0, 1, 0), RD = new T.Vector3(), RD2 = new T.Vector3(), O = new T.Vector3(), RT = new T.Vector3(), Mb = new T.Matrix4(), Qa = new T.Quaternion(), Qb = new T.Quaternion(), Qc = new T.Quaternion();
+  function setUp(n, k) {
+    const nu = O.copy(P.up).lerp(n, k).normalize();
+    if (nu.lengthSq() < .5) return;
+    Qa.setFromUnitVectors(P.up, nu); P.up.copy(nu); P.fwd.applyQuaternion(Qa);
+    P.fwd.addScaledVector(P.up, -P.fwd.dot(P.up)).normalize();
+  }
+  function walk(dt, f, st, spd) {
+    RT.crossVectors(P.fwd, P.up).normalize();
+    if (P.onGround) {
+      const want = RD2.copy(P.fwd).multiplyScalar(f).addScaledVector(RT, st).multiplyScalar(spd);
+      P.vel.lerp(want, Math.min(1, dt * 11));
+      if (IN.jump || P.vel.dot(P.up) > 2.5) {
+        if (IN.jump) { P.vel.addScaledVector(P.up, 6.9 * (1 + .05 * UP.lv.pattes)); SFX.step(); }
+        IN.jump = false; P.onGround = false; return;
+      }
+      P.vel.addScaledVector(P.up, -P.vel.dot(P.up));
+      const step = P.vel.length() * dt;
+      let climbed = false;
+      if (step > 1e-5) {
+        RD.copy(P.vel).normalize();
+        // paroi devant (mur, caillou, bord de feuille) : on grimpe dessus au lieu de la traverser
+        const h = world.raycast(O.copy(P.pos).addScaledVector(P.up, .22), RD, step + .36);
+        if (h && h.n.dot(P.up) < .8) { P.pos.copy(h.p); setUp(h.n, 1); climbed = true; if (!P.climbHint && h.n.y < .5) { P.climbHint = true; HUD.notice('Tu grimpes ! Espace pour sauter et te détacher', 2.5); } }
+        else P.pos.addScaledVector(RD, step);
+      }
+      // rester collée à la surface sous les pattes
+      let g = world.raycast(O.copy(P.pos).addScaledVector(P.up, .45), RD2.copy(P.up).negate(), 1.05);
+      if (g) { P.pos.copy(g.p); setUp(g.n, climbed ? 1 : Math.min(1, dt * 12)); }
+      else {
+        // arête : on bascule de l'autre côté (comme une fourmi qui passe le bord d'une feuille)
+        RD.copy(P.vel.lengthSq() > 1e-6 ? P.vel : P.fwd).normalize().negate();
+        g = world.raycast(O.copy(P.pos).addScaledVector(P.up, -.32), RD, .9);
+        if (g && g.n.dot(P.up) < .95) { P.pos.copy(g.p); setUp(g.n, 1); }
+        else P.onGround = false;
+      }
+      if (P.up.y > .6) world.pushOut(P.pos, .38);
+    } else {
+      // en l'air : gravité du monde, la tête se redresse peu à peu
+      IN.jump = false;
+      P.vel.y -= 16 * dt;
+      const d = P.vel.length() * dt;
+      RD.copy(P.vel).normalize();
+      const h = d > 1e-6 ? world.raycast(O.copy(P.pos).addScaledVector(P.up, .3), RD, d + .32) : null;
+      if (h) { P.pos.copy(h.p); setUp(h.n, 1); P.onGround = true; P.vel.addScaledVector(P.up, -P.vel.dot(P.up)).multiplyScalar(.5); }
+      else { P.pos.addScaledVector(P.vel, dt); setUp(WUP, Math.min(1, dt * 3)); }
+    }
+    // filets de sécurité : jamais dans la roche, jamais hors de la carte
+    const lim = world.half - 3; P.pos.x = clamp(P.pos.x, -lim, lim); P.pos.z = clamp(P.pos.z, -lim, lim);
+    const cx = P.pos.x + P.up.x * .3, cy = P.pos.y + P.up.y * .3, cz = P.pos.z + P.up.z * .3;
+    if (world.solidPt(cx, cy, cz)) {
+      const fl = world.floorAt(P.pos.x, P.pos.z);
+      if (world.cave && cy > world.ceilAt(P.pos.x, P.pos.z) && Math.abs(cy - world.ceilAt(P.pos.x, P.pos.z)) < Math.abs(cy - fl)) { P.pos.y = world.ceilAt(P.pos.x, P.pos.z) - .02; }
+      else P.pos.y = fl + .02;
+      setUp(world.terrNormal(P.pos), 1); P.onGround = true; P.vel.set(0, 0, 0);
+    }
+  }
 
   function dart() {
     const k = P.charge; P.darts--; P.cd = .55; P.recoil = 2; G.stats.shots++;

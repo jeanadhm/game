@@ -46,7 +46,7 @@ class World {
       const x = -h + c * res, z = -h + r * res, i = r * n + c, o = this.cave ? this.caveAt(x, z) : this.surfAt(x, z);
       this.floor[i] = o.f; this.ceil[i] = o.c; this.w[i] = o.w;
     }
-    this.hash = new Map(); this.cols = []; this.flowers = [];
+    this.hash = new Map(); this.cols = []; this.flowers = []; this.climb = new Map();
     this.ores = .25; this.on = Math.round(S / this.ores) + 1;
     this.otop = new Float32Array(this.on * this.on).fill(-1e9); this.obot = new Float32Array(this.on * this.on).fill(1e9);
     this.buildGround();
@@ -158,6 +158,7 @@ class World {
   // grille fine des objets solides : hauteur du dessus et du dessous, obtenue en rastérisant leurs triangles
   raster(mesh) {
     mesh.updateMatrixWorld(true);
+    this.addClimb(mesh);
     const g = mesh.geometry, pa = g.attributes.position, ix = g.index, M = mesh.matrixWorld, n = this.on, r = this.ores, h = this.half;
     const vs = []; for (let i = 0; i < pa.count; i++) vs.push(new T.Vector3().fromBufferAttribute(pa, i).applyMatrix4(M));
     const cnt = ix ? ix.count : pa.count, I = k => ix ? ix.getX(k) : k;
@@ -174,6 +175,57 @@ class World {
         if (y > this.otop[i]) this.otop[i] = y; if (y < this.obot[i]) this.obot[i] = y;
       }
     }
+  }
+  // --- surfaces escaladables (pour marcher sur les murs, les plafonds et les objets)
+  addClimb(mesh) {
+    const g = mesh.geometry; if (!g.boundingSphere) g.computeBoundingSphere();
+    const c = g.boundingSphere.center.clone().applyMatrix4(mesh.matrixWorld), r = g.boundingSphere.radius * mesh.matrixWorld.getMaxScaleOnAxis();
+    const e = { mesh, c, r }, k = 8;
+    for (let a = Math.floor((c.x - r) / k); a <= Math.floor((c.x + r) / k); a++)
+      for (let b = Math.floor((c.z - r) / k); b <= Math.floor((c.z + r) / k); b++) { const key = a * 10007 + b; let l = this.climb.get(key); if (!l) this.climb.set(key, l = []); l.push(e); }
+  }
+  solidPt(x, y, z) { return y < this.floorAt(x, z) || (this.cave && y > this.ceilAt(x, z)); }
+  terrNormal(p) {
+    const e = .25, f = this.floorAt(p.x, p.z);
+    if (!this.cave || Math.abs(p.y - f) <= Math.abs(p.y - this.ceilAt(p.x, p.z)))
+      return new T.Vector3(this.floorAt(p.x - e, p.z) - this.floorAt(p.x + e, p.z), 2 * e, this.floorAt(p.x, p.z - e) - this.floorAt(p.x, p.z + e)).normalize();
+    return new T.Vector3(this.ceilAt(p.x + e, p.z) - this.ceilAt(p.x - e, p.z), -2 * e, this.ceilAt(p.x, p.z + e) - this.ceilAt(p.x, p.z - e)).normalize();
+  }
+  // premier contact d'un rayon avec le relief (sol, murs, plafond) ou un objet modélisé : { p, n, d }
+  raycast(o, d, max) {
+    let best = null;
+    if (!this.solidPt(o.x, o.y, o.z)) {
+      const st = .1;
+      for (let t = st; t <= max + st; t += st) {
+        const tt = Math.min(t, max);
+        if (this.solidPt(o.x + d.x * tt, o.y + d.y * tt, o.z + d.z * tt)) {
+          let a = tt - st, b = tt;
+          for (let k = 0; k < 7; k++) { const m = (a + b) / 2; if (this.solidPt(o.x + d.x * m, o.y + d.y * m, o.z + d.z * m)) b = m; else a = m; }
+          const p = new T.Vector3(o.x + d.x * b, o.y + d.y * b, o.z + d.z * b);
+          best = { p, n: this.terrNormal(p), d: b };
+          break;
+        }
+        if (tt >= max) break;
+      }
+    }
+    const lim = best ? best.d : max;
+    if (!this._rc) this._rc = new T.Raycaster();
+    const rc = this._rc; rc.set(o, d); rc.near = 0; rc.far = lim;
+    const seen = new Set(), k = 8;
+    for (let a = Math.floor((o.x - lim - 1) / k); a <= Math.floor((o.x + lim + 1) / k); a++)
+      for (let b = Math.floor((o.z - lim - 1) / k); b <= Math.floor((o.z + lim + 1) / k); b++) {
+        for (const e of this.climb.get(a * 10007 + b) || EMPTY) {
+          if (seen.has(e)) continue; seen.add(e);
+          if (e.c.distanceTo(o) > e.r + lim + .5) continue;
+          const h = rc.intersectObject(e.mesh, false)[0];
+          if (h && h.distance < (best ? best.d : lim)) {
+            const n = h.face.normal.clone().transformDirection(e.mesh.matrixWorld);
+            if (n.dot(d) > 0) n.negate();
+            best = { p: h.point, n, d: h.distance };
+          }
+        }
+      }
+    return best;
   }
   oSamp(A, x, z, empty) {
     const n = this.on, r = this.ores, h = this.half, fx = (x + h) / r, fz = (z + h) / r, c = Math.floor(fx), rr = Math.floor(fz);
@@ -202,9 +254,10 @@ class World {
   // déplace un corps (pieds en p) avec glissement le long des murs
   move(p, dx, dz, r, step) {
     const l = Math.hypot(dx, dz), ax = l > 1e-5 ? dx / l * r * .8 : 0, az = l > 1e-5 ? dz / l * r * .8 : 0;
-    if (this.walkable(p.x + dx, p.z + dz, p.y, step) && this.walkable(p.x + dx + ax, p.z + dz + az, p.y, step + .1)) { p.x += dx; p.z += dz; }
-    else if (this.walkable(p.x + dx, p.z, p.y, step)) p.x += dx;
-    else if (this.walkable(p.x, p.z + dz, p.y, step)) p.z += dz;
+    const ok = (x, z) => this.walkable(x, z, p.y, step) && this.walkable(x + ax, z + az, p.y, step + .1) && this.walkable(x - az * .7, z + ax * .7, p.y, step + .1) && this.walkable(x + az * .7, z - ax * .7, p.y, step + .1);
+    if (ok(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; }
+    else if (dx && ok(p.x + dx, p.z)) p.x += dx;
+    else if (dz && ok(p.x, p.z + dz)) p.z += dz;
     this.pushOut(p, r);
   }
   pushOut(p, r) {
@@ -337,6 +390,11 @@ class World {
       const m = new T.Mesh(ANT.sph, dewMat); m.scale.set(r, r * .82, r); m.position.set(x, this.floorAt(x, z) + r * .7, z); g.add(m);
     }
     if (L.mound) this.anthill(L.mound);
+    if (natGeo('rock_0')) for (let i = 0; i < 44; i++) {
+      const t = i / 44 * 4, side = Math.floor(t), u = (t - side) * 2 - 1, e = h - 3 + rng() * 4;
+      const x = side === 0 ? u * h : side === 1 ? e : side === 2 ? -u * h : -e, z = side === 0 ? e : side === 1 ? -u * h : side === 2 ? -e : u * h;
+      const m = natMesh('rock_' + (i % 5), 'rock'), s = 9 + rng() * 12; m.scale.setScalar(s); m.position.set(x, this.floorAt(clamp(x, -h, h), clamp(z, -h, h)) - s * .25, z); m.rotation.y = rng() * 6.28; g.add(m); this.raster(m);
+    }
     // feuilles posées en rampe jusqu'aux chapeaux des champignons : on peut y monter et sauter de l'un à l'autre
     for (const mu of this.mush) {
       for (let tries = 0; tries < 6; tries++) {
@@ -510,7 +568,8 @@ class World {
     hole.rotation.x = -Math.PI / 2; hole.position.set(m.x, y + .08, m.z); this.group.add(hole);
     const glow = new T.Sprite(new T.SpriteMaterial({ map: TEX.glow, color: '#ff5a1f', transparent: true, opacity: .35, depthWrite: false, blending: T.AdditiveBlending }));
     glow.scale.set(7, 7, 1); glow.position.set(m.x, y + 1.2, m.z); this.group.add(glow);
-    const rim = natMesh('nest_rim', 'misc'); if (rim) { rim.scale.setScalar(2.7); rim.position.set(m.x, y - .1, m.z); this.group.add(rim); this.raster(rim); }
+    const dome = natMesh('anthill', 'misc'); if (dome) { const R = m.r * 1.08; dome.scale.set(R, m.h / .42 * 1.02, R); dome.position.set(m.x, this.floorAt(m.x + m.r * 1.15, m.z) - .3, m.z); this.group.add(dome); this.raster(dome); }
+    const rim = natMesh('nest_rim', 'misc'); if (rim && !dome) { rim.scale.setScalar(2.7); rim.position.set(m.x, y - .1, m.z); this.group.add(rim); this.raster(rim); }
     // granules rouges du dôme
     const rg = this.rockGeo(99), im = new T.InstancedMesh(rg, new T.MeshStandardMaterial({ color: '#8a4a2c', roughness: .9 }), 420);
     const mt = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), s = new T.Vector3(), p = new T.Vector3(), r = mkRng(5);
@@ -563,7 +622,7 @@ class World {
         const room = L.shapes.find(r => !r.b && Math.hypot(r.x - p[0], r.z - p[1]) < .5); if (!room) continue;
         const dx = q[0] - p[0], dz = q[1] - p[1], l = Math.hypot(dx, dz), d = room.r - .8; if (l < d + 2) continue;
         const x = p[0] + dx / l * d, z = p[1] + dz / l * d, m = natMesh('arch', 'wood');
-        m.scale.setScalar(t.r * 2.3); m.position.set(x, this.floorAt(x, z) - .1, z); m.rotation.y = Math.atan2(dx, dz) + Math.PI / 2; g.add(m); this.raster(m);
+        m.scale.setScalar(t.r * 2.3); m.position.set(x, this.floorAt(x, z) - .1, z); m.rotation.y = Math.atan2(dx, dz); g.add(m); this.raster(m);
       }
     }
     // cailloux

@@ -461,6 +461,49 @@ pts = [Vector((0, -t + .5, 0)) for t in (j / 24 for j in range(25))]
 tube(bm, pts, lambda j, t, a: .26 * math.sin(math.pi * t) ** .6 * (1 + .04 * math.sin(a * 9 + t * 14)) + .01, k=18)
 OBJS.append(build('cocoon', bm, lambda co, no: mix(C(240, 228, 200), C(214, 196, 160), noise.noise(co * 12) + .5)))
 
+# ------------------------------------------------------------------ fourmilière rouge : dôme d'aiguilles de pin, brindilles et grains (rayon 1, hauteur 0,42)
+bm = bmesh.new()
+def dome_h(r, a):
+    h = .42 * max(0, 1 - r * r) ** .8 + .02 * noise.noise(Vector((math.cos(a) * r * 4, math.sin(a) * r * 4, 0)))
+    if r < .13:
+        h -= .09 * (1 - r / .13) ** .7                                     # cratère d'entrée
+    for ea in (.6, 2.9, 4.7):                                              # entrées latérales
+        dx, dy = math.cos(a) * r - math.cos(ea) * .62, math.sin(a) * r - math.sin(ea) * .62
+        h -= .07 * math.exp(-(dx * dx + dy * dy) / .004)
+    return h
+surface(bm, 72, 26, lambda u, v: Vector((math.cos(u * math.tau) * (.06 + v * .97), math.sin(u * math.tau) * (.06 + v * .97), dome_h(.06 + v * .97, u * math.tau))))
+for k in range(1700):                                                      # aiguilles posées sur le dôme
+    r = math.sqrt(random.uniform(.02, 1)) * .98
+    a = random.uniform(0, math.tau)
+    c = Vector((math.cos(a) * r, math.sin(a) * r, dome_h(r, a) + .004))
+    th = random.uniform(0, math.tau)
+    d = Vector((math.cos(th), math.sin(th), 0))
+    L = random.uniform(.04, .085)
+    p0, p1 = c - d * L / 2, c + d * L / 2
+    p0.z = dome_h(math.hypot(p0.x, p0.y), math.atan2(p0.y, p0.x)) + .004
+    p1.z = dome_h(math.hypot(p1.x, p1.y), math.atan2(p1.y, p1.x)) + .004
+    tube(bm, [p0, (p0 + p1) / 2 + Vector((0, 0, .002)), p1], lambda j, t, aa: .0045, k=4, cap=False)
+for k in range(22):                                                        # brindilles
+    r = random.uniform(.15, .9); a = random.uniform(0, math.tau); th = random.uniform(0, math.tau)
+    c = Vector((math.cos(a) * r, math.sin(a) * r, 0)); d = Vector((math.cos(th), math.sin(th), 0)); L = random.uniform(.08, .16)
+    pts = []
+    for j in range(6):
+        q = c + d * (j / 5 - .5) * L
+        q.z = dome_h(math.hypot(q.x, q.y), math.atan2(q.y, q.x)) + .008
+        pts.append(q)
+    tube(bm, pts, lambda j, t, aa: .008, k=6)
+for k in range(260):                                                       # grains de terre
+    r = math.sqrt(random.uniform(0, 1)); a = random.uniform(0, math.tau)
+    lump(bm, (math.cos(a) * r, math.sin(a) * r, dome_h(r, a)), random.uniform(.006, .014), k * .3, detail=0)
+
+def acol(co, no):
+    r = math.hypot(co.x, co.y)
+    c = mix(C(150, 84, 44), C(110, 58, 30), noise.noise(co * 30) + .5)
+    if r < .16 and co.z < .36:
+        c = c * .35                                                        # ombre du cratère
+    return c
+OBJS.append(build('anthill', bm, acol))
+
 # ------------------------------------------------------------------ export
 for o in OBJS:
     o.location = (0, 0, 0)

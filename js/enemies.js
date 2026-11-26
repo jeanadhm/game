@@ -266,7 +266,8 @@ const EN = { list: [], flowT: 0 };
           setTimeout(() => a.setOpen(.12), 150);
         }
       }
-      // déplacement
+      // déplacement (avec contournement quand une plante ou un caillou bloque)
+      if (e.detour > 0) { e.detour -= dt; const c = Math.cos(e.detA), sn = Math.sin(e.detA), x = out.tx * c - out.tz * sn; out.tz = out.tx * sn + out.tz * c; out.tx = x; }
       const k = Math.hypot(out.tx, out.tz);
       const tvx = k > 1e-3 ? out.tx / k * out.spd : 0, tvz = k > 1e-3 ? out.tz / k * out.spd : 0;
       const acc = out.charge ? 20 : 6;
@@ -280,6 +281,10 @@ const EN = { list: [], flowT: 0 };
       const ox = e.pos.x, oz = e.pos.z;
       world.move(e.pos, e.vel.x * dt, e.vel.z * dt, .5 * s, .55 * s);
       const moved = Math.hypot(e.pos.x - ox, e.pos.z - oz);
+      if (out.spd > 1 && !out.charge && !e.atk) {
+        if (moved < out.spd * dt * .25) e.stuckT = (e.stuckT || 0) + dt; else e.stuckT = Math.max(0, (e.stuckT || 0) - dt * 2);
+        if (e.stuckT > .4) { e.stuckT = 0; e.detour = rand(.6, 1.1); e.detA = (Math.random() < .5 ? 1 : -1) * rand(1.1, 1.9); e.vel.multiplyScalar(.3); }
+      }
       if (out.charge && moved < out.spd * dt * .3) { e.stun = 2.2; e.b.mode = 'chase'; e.b.stuns++; FX.shake = Math.max(FX.shake, .9); SFX.boom(dist); G.event('bossStun', e); }
       if (dt > 0 && !out.charge) { const rv = moved / dt; if (rv < Math.hypot(e.vel.x, e.vel.z) * .5) { e.vel.x *= .5; e.vel.z *= .5; } }
       const gy = world.groundAt(e.pos.x, e.pos.z, e.pos.y + .5 * s);

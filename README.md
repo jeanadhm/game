@@ -7,13 +7,14 @@ Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.gi
 
 Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, G pour donner un ordre à l'escouade, R pour la rappeler, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
 
-## Contenu (v3.1)
+## Contenu (v4.0)
 - 3 chapitres : La Prairie (surface), Les Galeries (terriers, 3 cocons à retrouver), La Chambre royale (boss Major Ignis)
 - 4 armes : mandibules, acide formique, graine explosive, dard chargé (paralyse), et un bouclier temporaire (clic droit ou F)
 - 6 ennemis : éclaireuse, soldate, cracheuse, Ailée (volante), Méga-soldate (blindée devant, frappe au sol), boss
 - Escouade en option : 2 alliées noires (Nyx à l'acide, Brume au corps à corps) qu'on peut relever ; ordres (G : suivre, tenir une position, libre) et rappel d'urgence (R)
-- Décor entièrement modélisé dans Blender : cailloux moussus, brindilles, feuilles nervurées, herbe, trèfles, pissenlits, champignons, entrée de fourmilière, racines, mycènes lumineuses, arches de tunnel, œufs, larves, cocons
+- Décor entièrement modélisé dans Blender : cailloux moussus, brindilles, feuilles nervurées, herbe, trèfles, pissenlits, champignons, fourmilière rouge (dôme d'aiguilles de pin), entrée de fourmilière, racines, mycènes lumineuses, arches de tunnel, œufs, larves, cocons
 - Mode histoire avec cinématiques de chapitre et présentations des grandes ennemies
+- Escalade comme une vraie fourmi : murs, plafonds (tête en bas), cailloux, feuilles, champignons ; Espace pour se détacher
 - Marche par cinématique inverse : chaque patte se pose au sol, le corps suit le relief
 - Évolutions entre les chapitres, achetées avec le nectar
 - 3 difficultés, points de sauvegarde, réglage graphique (halo lumineux, ombres)
@@ -54,6 +55,7 @@ python tools/build_nature.py models
 ```
 
 ## Versions
+- **v4.0** : escalade de toutes les surfaces, fourmilière modélisée, rochers en bord de carte ; corrections : arches qui bouchaient les tunnels (salle de la reine), ennemies bloquées par les plantes, traversée d'objets
 - **v3.1** : tout le décor modélisé dans Blender, collisions exactes sur ces modèles, ordres et rappel de l'escouade
 - **v3.0** : marche par IK sans glissement, bouclier, escouade, Méga-soldates, cinématiques, collisions exactes sur les cailloux, vent en rafales et herbe qui s'écarte, tapis d'herbe, profondeur de champ, normal maps
 - **v2.1** : fourmis modélisées dans Blender avec squelette et animations, carbonisation à la mort, plateformes (feuilles, cailloux, champignons)
