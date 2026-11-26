@@ -5,13 +5,14 @@ FPS 3D jouable dans le navigateur : une soldate fourmi noire affronte la colonie
 ## Jouer
 Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.github.io/game/). Three.js (r128) est chargé depuis un CDN.
 
-Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
+Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, G pour donner un ordre à l'escouade, R pour la rappeler, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
 
-## Contenu (v3.0)
+## Contenu (v3.1)
 - 3 chapitres : La Prairie (surface), Les Galeries (terriers, 3 cocons à retrouver), La Chambre royale (boss Major Ignis)
 - 4 armes : mandibules, acide formique, graine explosive, dard chargé (paralyse), et un bouclier temporaire (clic droit ou F)
 - 6 ennemis : éclaireuse, soldate, cracheuse, Ailée (volante), Méga-soldate (blindée devant, frappe au sol), boss
-- Escouade en option : 2 alliées noires (Nyx à l'acide, Brume au corps à corps) qu'on peut relever
+- Escouade en option : 2 alliées noires (Nyx à l'acide, Brume au corps à corps) qu'on peut relever ; ordres (G : suivre, tenir une position, libre) et rappel d'urgence (R)
+- Décor entièrement modélisé dans Blender : cailloux moussus, brindilles, feuilles nervurées, herbe, trèfles, pissenlits, champignons, entrée de fourmilière, racines, mycènes lumineuses, arches de tunnel, œufs, larves, cocons
 - Mode histoire avec cinématiques de chapitre et présentations des grandes ennemies
 - Marche par cinématique inverse : chaque patte se pose au sol, le corps suit le relief
 - Évolutions entre les chapitres, achetées avec le nectar
@@ -39,7 +40,9 @@ js/levels.js      chapitres, histoire, scripts
 js/main.js        rendu, états du jeu, boucle principale
 models/ant.glb    fourmi (maillage + squelette + animations), générée par tools/build_ant.py
 models/vm.glb     mandibles de la vue à la première personne
+models/nature.glb décor (plantes, pierres, galeries), généré par tools/build_nature.py
 tools/build_ant.py  script Blender qui modélise la fourmi
+tools/build_nature.py  script Blender qui modélise le décor
 ```
 
 ## Regénérer les modèles 3D
@@ -47,9 +50,11 @@ Les modèles sont créés par script avec Blender (gratuit), sans modélisation 
 ```
 pip install bpy
 python tools/build_ant.py models
+python tools/build_nature.py models
 ```
 
 ## Versions
+- **v3.1** : tout le décor modélisé dans Blender, collisions exactes sur ces modèles, ordres et rappel de l'escouade
 - **v3.0** : marche par IK sans glissement, bouclier, escouade, Méga-soldates, cinématiques, collisions exactes sur les cailloux, vent en rafales et herbe qui s'écarte, tapis d'herbe, profondeur de champ, normal maps
 - **v2.1** : fourmis modélisées dans Blender avec squelette et animations, carbonisation à la mort, plateformes (feuilles, cailloux, champignons)
 - **v2.0** : dard chargé, Ailées volantes, évolutions au nectar, difficulté, points de sauvegarde, halo lumineux et réglage graphique, barre de vie de la cible

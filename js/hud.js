@@ -12,6 +12,8 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
     if (e.code === 'Space' && !e.repeat) IN.jump = true;
     if (/^Digit[1-4]$/.test(e.code)) IN.wsel = +e.code.slice(5);
     if (e.code === 'KeyF' || e.code === 'KeyE') IN.shieldPress = true;
+    if (G.state === 'play' && e.code === 'KeyG' && !e.repeat) ALLY.command();
+    if (G.state === 'play' && e.code === 'KeyR' && !e.repeat) ALLY.recall();
     if ((e.code === 'Escape' || e.code === 'KeyP') && G.state === 'play' && !IN.locked) G.pause();
   });
   addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) IN.k[k] = false; });
@@ -52,6 +54,8 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
   hold('tJump', () => { IN.jump = true; });
   hold('tWeap', () => { IN.wheel += 1; });
   hold('tShield', () => { IN.shieldPress = true; });
+  hold('tOrder', () => ALLY.command());
+  hold('tRecall', () => ALLY.recall());
   hold('tPause', () => G.pause());
 })();
 
@@ -73,8 +77,8 @@ const HUD = (() => {
       if (ang !== null) { const d = $('dmgDir'); d.style.transform = `rotate(${-ang}rad)`; d.classList.remove('on'); void d.offsetWidth; d.classList.add('on'); }
     },
     allies() {
-      $('allies').innerHTML = ALLY.list.map(a => `<div class="ally${a.down ? ' down' : ''}"><span></span><div class="track"><div style="width:${a.hp / a.max * 100}%"></div></div></div>`).join('');
-      [...$('allies').querySelectorAll('span')].forEach((el, i) => el.textContent = ALLY.list[i].name + (ALLY.list[i].down ? ' · à terre' : ''));
+      $('allies').innerHTML = (ALLY.list.length ? `<div class="order">Escouade : <b>${ORDERS[ALLY.order]}</b> <small>${IN.touch ? '' : 'G ordre · R rappel'}</small></div>` : '') + ALLY.list.map(a => `<div class="ally${a.down ? ' down' : ''}"><span></span><div class="track"><div style="width:${a.hp / a.max * 100}%"></div></div></div>`).join('');
+      [...$('allies').querySelectorAll('.ally span')].forEach((el, i) => el.textContent = ALLY.list[i].name + (ALLY.list[i].down ? ' · à terre' : ''));
     },
     prompt(t) { const p = $('prompt'); if (p.textContent !== t) { p.textContent = t; p.hidden = !t; } },
     nectar() { $('nect').textContent = UP.nectar; $('nectW').classList.remove('bump'); void $('nectW').offsetWidth; $('nectW').classList.add('bump'); },

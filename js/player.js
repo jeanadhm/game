@@ -22,7 +22,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     for (const s of [-1, 1]) {
       // mandibles courbes, vues depuis la tête
       const md = new T.Vector3(-s * .55, .08, -1).normalize();
-      const pv = new T.Group(); pv.position.set(s * .16, -.235, -.42); VM.root.add(pv);
+      const pv = new T.Group(); pv.position.set(s * .15, -.3, -.5); VM.root.add(pv);
       const m1 = new T.Mesh(limbGeo(.26, .034), mat); aim(m1, md); pv.add(m1);
       const tip = new T.Group(); tip.position.copy(md).multiplyScalar(.24); pv.add(tip);
       const m2 = new T.Mesh(limbGeo(.12, .026), mat); aim(m2, new T.Vector3(-s, .02, -.45)); tip.add(m2);
@@ -55,7 +55,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     const mat = new T.MeshPhysicalMaterial({ color: '#1b120b', roughness: .35, clearcoat: .8, clearcoatRoughness: .25, envMapIntensity: .4 });
     VM.mand.forEach((pv, k) => {
       const src = ANT.vm.scene.getObjectByName(k === 0 ? 'vm_mand_R' : 'vm_mand_L'); if (!src) return;
-      pv.clear(); const m = src.clone(); m.material = mat; m.position.set(0, 0, 0); m.rotation.set(-.1, Math.PI, 0); m.scale.setScalar(1.35); pv.add(m);
+      pv.clear(); const m = src.clone(); m.material = mat; m.position.set(0, 0, 0); m.rotation.set(-.28, Math.PI, 0); m.scale.setScalar(.85); pv.add(m);
     });
     VM.mBase = .12;
   };
@@ -213,7 +213,7 @@ const PK = { list: [] };
     armor: () => { const g = new T.Group(); const m = new T.Mesh(new T.OctahedronGeometry(.32, 0), chitinMat('#1a1714', .15)); m.scale.y = 1.4; g.add(m); return g; },
     dart: () => { const g = new T.Group(); const m = new T.Mesh(new T.ConeGeometry(.05, .6, 8), new T.MeshStandardMaterial({ color: '#ffcf6a', emissive: '#ff9a1a', emissiveIntensity: .8 })); m.rotation.z = .5; g.add(m); return g; },
     nectar: () => { const g = new T.Group(); const m = new T.Mesh(ANT.sph, new T.MeshPhysicalMaterial({ color: '#ff5fc8', emissive: '#a0167a', roughness: .05, clearcoat: 1, transparent: true, opacity: .85 })); m.scale.set(.3, .36, .3); g.add(m); return g; },
-    cocoon: () => { const g = new T.Group(); const m = new T.Mesh(ANT.sph, new T.MeshPhysicalMaterial({ color: '#f1e6c8', emissive: '#4a3a10', roughness: .6 })); m.scale.set(.45, .45, .85); g.add(m); return g; },
+    cocoon: () => { const nm = natMesh('cocoon', 'soft'); if (nm) { const g = new T.Group(); nm.scale.setScalar(1.7); g.add(nm); return g; } const g = new T.Group(); const m = new T.Mesh(ANT.sph, new T.MeshPhysicalMaterial({ color: '#f1e6c8', emissive: '#4a3a10', roughness: .6 })); m.scale.set(.45, .45, .85); g.add(m); return g; },
   };
   const glowCol = { heal: '#ffb02a', seed: '#d9a066', armor: '#9fb8ff', cocoon: '#fff3c4', dart: '#ffb03a', nectar: '#ff5fc8' };
   PK.clear = () => { for (const p of PK.list) scene.remove(p.g); PK.list = []; };

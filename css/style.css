@@ -60,7 +60,7 @@ body.touch.playing #tzone { display: block; }
 #boss b { font-size: 15px; color: #ff8a5a; text-shadow: 0 1px 3px #000; }
 #boss .track { height: 12px; margin-top: 4px; border-color: #e0441f88; }
 #bossBar { height: 100%; width: 100%; background: linear-gradient(90deg, #7a1309, #e0441f); transition: width .25s; }
-#dlg { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); transform: translateX(-50%); width: min(620px, calc(100vw - 32px)); background: #0b0907d9; border-top: 2px solid #f2a93b; padding: 10px 16px 12px; }
+#dlg { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 112px); transform: translateX(-50%); width: min(620px, calc(100vw - 32px)); background: #0b0907d9; border-top: 2px solid #f2a93b; padding: 10px 16px 12px; }
 #dlgWho { font-size: 13px; color: #f2a93b; }
 #dlgWho[data-who="Nyx, éclaireuse"] { color: #a6ff3d; }
 #dlgWho[data-who="Major Ignis"], #dlgWho[data-who="Reine Rouge"] { color: #ff6a3d; }
@@ -82,7 +82,7 @@ body.touch.playing #tzone { display: block; }
 #stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: #f2a93bcc; }
 body.touch #vitals { bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: min(220px, 40vw); }
 body.touch #weap { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 90px); }
-body.touch #dlg { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); }
+body.touch #dlg { top: calc(env(safe-area-inset-top, 0px) + 100px); }
 
 /* --- écrans --- */
 .screen { position: fixed; inset: 0; z-index: 10; display: grid; padding: max(24px, env(safe-area-inset-top, 0px)) max(5vw, 16px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(5vw, 16px, env(safe-area-inset-left, 0px)); overflow-y: auto; touch-action: pan-y; }
@@ -155,12 +155,19 @@ h2 { font: 700 clamp(34px, 6vw, 54px)/1 'Chakra Petch', sans-serif; margin: 0 0 
 #shieldBar.on { background: #b6fff0; box-shadow: 0 0 8px #7dffd0; }
 .bar.shield label { color: #9fe9d4; }
 .bar.shield b { font-size: 12px; color: #9fe9d4; }
-#allies { display: grid; gap: 4px; margin-top: 4px; }
+#allies { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 132px); width: min(250px, 40vw); display: grid; gap: 4px; background: linear-gradient(90deg, #0b0907b0, #0b090700); padding: 6px 10px; }
+#allies:empty { display: none; }
 .ally { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; font-size: 12px; }
 .ally .track { height: 6px; }
 .ally .track div { height: 100%; background: #c9c2b4; }
 .ally.down span { color: #ff8a5a; }
 .ally.down .track div { background: #e0441f; }
+.order { font-size: 12px; color: #d8cdb8; }
+.order b { color: #7dffd0; font-weight: 700; }
+.order small { color: #9a917f; margin-left: 4px; }
+#tOrder, #tRecall { width: 52px; height: 52px; font-size: 10px !important; left: max(18px, env(safe-area-inset-left, 0px)); }
+#tOrder { top: calc(env(safe-area-inset-top, 0px) + 150px); }
+#tRecall { top: calc(env(safe-area-inset-top, 0px) + 210px); border-color: #ff8a5a !important; }
 #prompt { position: absolute; left: 50%; top: 66%; transform: translateX(-50%); background: #0b0907d0; border: 1px solid #a6ff3d; padding: 6px 14px; font-size: 15px; }
 #cine { position: fixed; inset: 0; z-index: 6; pointer-events: auto; cursor: pointer; }
 #cine i { position: absolute; left: 0; right: 0; height: 11vh; background: #000; }

@@ -1,6 +1,29 @@
 'use strict';
 // Colonie Noire · monde : terrain (surface ou galeries), décor, collisions, ligne de vue, navigation
 const EMPTY = [];
+// --- décor modélisé dans Blender (models/nature.glb) : géométries et matériaux partagés
+const NATC = {}, NATM = {};
+function natGeo(name) {
+  if (!ANT.nature) return null;
+  if (NATC[name]) return NATC[name];
+  let m = null; const o = ANT.nature.scene.getObjectByName(name); if (!o) return null;
+  o.traverse(x => { if (!m && x.isMesh) m = x; });
+  const g = m.geometry;
+  if (g.attributes.color_1) { g.setAttribute('color', g.attributes.color_1); g.deleteAttribute('color_1'); }
+  g.userData.keep = true; NATC[name] = g; return g;
+}
+function natMat(kind) {
+  if (NATM[kind]) return NATM[kind];
+  const base = { vertexColors: true };
+  const m = kind === 'rock' ? new T.MeshStandardMaterial({ ...base, roughness: .9, normalMap: TEX.rockN, normalScale: new T.Vector2(1.3, 1.3) })
+    : kind === 'veg' ? new T.MeshStandardMaterial({ ...base, roughness: .62, side: T.DoubleSide, emissive: '#0a1404' })
+    : kind === 'wood' ? new T.MeshStandardMaterial({ ...base, roughness: .95 })
+    : kind === 'soft' ? new T.MeshPhysicalMaterial({ ...base, roughness: .45, clearcoat: .4, clearcoatRoughness: .4 })
+    : kind === 'cave' ? new T.MeshStandardMaterial({ ...base, roughness: .9, color: '#8a7a6a' })
+    : new T.MeshStandardMaterial({ ...base, roughness: .75 });
+  return (NATM[kind] = m);
+}
+function natMesh(name, kind) { const g = natGeo(name); if (!g) return null; const m = new T.Mesh(g, natMat(kind)); m.castShadow = m.receiveShadow = true; return m; }
 const DX8 = [1, -1, 0, 0, 1, 1, -1, -1], DZ8 = [0, 0, 1, -1, 1, -1, 1, -1];
 
 class World {
@@ -264,7 +287,7 @@ class World {
     const rockMats = rockCols.map(c => new T.MeshStandardMaterial({ color: c, map: TEX.rock, normalMap: TEX.rockN, normalScale: new T.Vector2(1.4, 1.4), roughness: .88 }));
     const placeRock = (x, z, s) => {
       const y = this.floorAt(x, z) - s * .2;
-      const m = new T.Mesh(rockGeos[Math.floor(rng() * 4)], rockMats[Math.floor(rng() * 4)]);
+      const m = natMesh('rock_' + Math.floor(rng() * 5), 'rock') || new T.Mesh(rockGeos[Math.floor(rng() * 4)], rockMats[Math.floor(rng() * 4)]);
       m.scale.setScalar(s); m.position.set(x, y, z); m.rotation.y = rng() * 6.28; m.castShadow = m.receiveShadow = true; g.add(m);
       this.raster(m);
       if (s > 4) this.highSpots.push({ x, z });
@@ -276,7 +299,7 @@ class World {
     }
     this.addGrass(rng, L.grass || 2400, clear);
     // gravillons (instanciés, sans collision)
-    const pg = rockGeos[0], pm = new T.InstancedMesh(pg, rockMats[2], 500), mt = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), sv = new T.Vector3(), pv = new T.Vector3();
+    const pg = natGeo('pebble') || rockGeos[0], pm = new T.InstancedMesh(pg, natGeo('pebble') ? natMat('rock') : rockMats[2], 500), mt = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), sv = new T.Vector3(), pv = new T.Vector3();
     for (let i = 0; i < 500; i++) {
       const x = (rng() * 2 - 1) * h, z = (rng() * 2 - 1) * h, s = .12 + rng() * .45;
       e.set(rng() * 3, rng() * 6, rng() * 3); q.setFromEuler(e); sv.set(s, s, s); pv.set(x, this.floorAt(x, z), z);
@@ -284,12 +307,12 @@ class World {
     }
     pm.receiveShadow = true; g.add(pm);
     // feuilles mortes
-    const lg = this.leafGeo(), leafCols = ['#6f8f2e', '#8a7a2a', '#9a5a22', '#6b4a1e', '#a8762c'];
+    const lg = natGeo('leaf_green') ? null : this.leafGeo(), leafCols = ['#6f8f2e', '#8a7a2a', '#9a5a22', '#6b4a1e', '#a8762c'];
     for (let i = 0; i < (L.leaves || 22); i++) {
       const x = (rng() * 2 - 1) * (h - 10), z = (rng() * 2 - 1) * (h - 10); if (clear(x, z)) continue;
       const s = 7 + rng() * 8, f = this.floorAt(x, z);
       if (Math.abs(this.floorAt(x + s * .4, z) - f) > .9 || Math.abs(this.floorAt(x, z + s * .4) - f) > .9) continue;
-      this.placeLeaf(lg, x, z, f + .06, rng() * 6.28, 0, s, leafCols[Math.floor(rng() * leafCols.length)]);
+      this.placeLeaf(lg, x, z, f + .06, rng() * 6.28, 0, s, leafCols[Math.floor(rng() * leafCols.length)], rng() < .45);
     }
     this.leafGeom = lg; this.leafCols = leafCols;
     // champignons
@@ -328,7 +351,12 @@ class World {
       }
     }
   }
-  placeLeaf(geo, x, z, y, yaw, pitch, s, col) {
+  placeLeaf(geo, x, z, y, yaw, pitch, s, col, dry) {
+    const nm = natMesh(dry ? 'leaf_dry' : 'leaf_green', 'veg');
+    if (nm) {
+      nm.scale.set(s * .72, s * .45, s); nm.position.set(x, y, z); nm.rotation.set(-pitch, yaw, 0, 'YXZ'); this.group.add(nm);
+      this.raster(nm); return;
+    }
     const m = new T.Mesh(geo, new T.MeshStandardMaterial({ map: TEX.leaf, color: col, side: T.DoubleSide, roughness: .75 }));
     m.scale.set(s * .7, s * .5, s); m.position.set(x, y, z); m.rotation.set(-pitch, yaw, 0, 'YXZ'); m.receiveShadow = m.castShadow = true; this.group.add(m);
     const c = this.addCol(x, z, s * .55, y + s * .5, -1e9);
@@ -347,6 +375,7 @@ class World {
     const geo = new T.BufferGeometry();
     geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new T.Float32BufferAttribute(col, 3));
     geo.setIndex(idx); geo.computeVertexNormals();
+    const ng = natGeo('grass'); const bladeGeo = ng || geo;
     const u = { value: 0 }, push = { value: new T.Vector3(0, -999, 0) }; this.windU = u; this.pushU = push;
     const mat = new T.MeshStandardMaterial({ vertexColors: true, side: T.DoubleSide, roughness: .55, emissive: '#0d1a04', emissiveIntensity: 1 });
     mat.onBeforeCompile = sh => {
@@ -367,7 +396,7 @@ class World {
         gl_Position = projectionMatrix * mvPosition;`);
     };
     const place = (n, mode, minH, maxH, collide, minW, maxW) => {
-      const tint = new T.Color(), im = new T.InstancedMesh(geo, mat, n), m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), e = new T.Euler();
+      const tint = new T.Color(), im = new T.InstancedMesh(bladeGeo, mat, n), m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), e = new T.Euler();
       let k = 0, tries = 0;
       while (k < n && tries < n * 10) {
         tries++;
@@ -386,6 +415,16 @@ class World {
     const near = place(count, 'in', 6, 20, true, .8, 1.9); near.castShadow = true; near.receiveShadow = true; this.group.add(near);
     const cover = place(G.qual === 0 ? 3000 : 9000, 'cover', .9, 3.4, false, .3, .7); cover.receiveShadow = true; this.group.add(cover);
     this.group.add(place(1400, 'out', 22, 50, false, .8, 1.9));
+    // trèfles éparpillés
+    const cg = natGeo('clover');
+    if (cg) {
+      const im = new T.InstancedMesh(cg, natMat('veg'), 260), m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), sv = new T.Vector3(), p = new T.Vector3(); let k = 0;
+      for (let i = 0; i < 1500 && k < 260; i++) {
+        const x = (rng() * 2 - 1) * this.half, z = (rng() * 2 - 1) * this.half; if (NOISE.fbm(x / 15 + 9, z / 15, 2) < .1 || clear(x, z) || this.objTop(x, z) > this.floorAt(x, z)) continue;
+        const sc = 2.5 + rng() * 3; e.set(0, rng() * 6.28, 0); q.setFromEuler(e); sv.set(sc, sc, sc); p.set(x, this.floorAt(x, z) - .1, z); m.compose(p, q, sv); im.setMatrixAt(k++, m);
+      }
+      im.count = k; im.castShadow = true; im.receiveShadow = true; this.group.add(im);
+    }
   }
   update(t) {
     if (this.windU) this.windU.value = t;
@@ -413,6 +452,12 @@ class World {
     g.computeVertexNormals(); return g;
   }
   mushroom(x, z, r, hgt, cap) {
+    const nm = natMesh(cap === '#9b5a2c' ? 'mush_brown' : 'mush_parasol', 'misc');
+    if (nm) {
+      const y = this.floorAt(x, z) - .15; nm.scale.setScalar(hgt); nm.position.set(x, y, z); nm.rotation.y = x * 7; this.group.add(nm); this.raster(nm);
+      (this.mush || (this.mush = [])).push({ x, z, y0: y + hgt * .97, R: .38 * hgt, h: (cap === '#9b5a2c' ? .2 : .14) * hgt });
+      return;
+    }
     const y = this.floorAt(x, z), g = new T.Group();
     const st = new T.Mesh(new T.CylinderGeometry(r * .8, r, hgt, 14), new T.MeshStandardMaterial({ color: '#e6dcc6', roughness: .8 }));
     st.position.y = hgt / 2; st.castShadow = st.receiveShadow = true; g.add(st);
@@ -429,6 +474,13 @@ class World {
   flower(x, z, hgt, k) {
     const y = this.floorAt(x, z), g = new T.Group();
     const lean = new T.Group(); lean.rotation.z = (k - .5) * .18; lean.rotation.x = .08; g.add(lean);
+    const nm = natMesh(k < .7 ? 'dandelion' : 'puffball', 'veg');
+    if (nm) {
+      nm.scale.setScalar(hgt); nm.rotation.y = k * 20; lean.add(nm);
+      g.position.set(x, y - .2, z); this.group.add(g); g.updateMatrixWorld(true); this.raster(nm);
+      this.flowers.push({ lean, z0: lean.rotation.z, x0: lean.rotation.x, ph: k * 9 });
+      return;
+    }
     const st = new T.Mesh(new T.CylinderGeometry(.18, .28, hgt, 8), new T.MeshStandardMaterial({ color: '#4c7a22', roughness: .7 }));
     st.position.y = hgt / 2; st.castShadow = true; lean.add(st);
     const head = new T.Group(); head.position.y = hgt; head.rotation.x = -.5; lean.add(head);
@@ -442,6 +494,11 @@ class World {
     this.flowers.push({ lean, z0: lean.rotation.z, x0: lean.rotation.x, ph: k * 9 });
   }
   twig(x, z, len, r, rot) {
+    const nm = natMesh('twig_' + (len > 18 ? 1 : 0), 'wood');
+    if (nm) {
+      nm.scale.setScalar(len); nm.rotation.y = rot; nm.position.set(x - Math.sin(rot) * len / 2, this.floorAt(x, z) - .12, z - Math.cos(rot) * len / 2);
+      this.group.add(nm); this.raster(nm); return;
+    }
     const g = new T.Mesh(new T.CylinderGeometry(r * .8, r, len, 10), new T.MeshStandardMaterial({ color: '#5a3e22', map: TEX.rock, roughness: .95 }));
     g.rotation.set(0, rot, Math.PI / 2, 'YXZ');
     const y = this.floorAt(x, z) + r * .7; g.position.set(x, y, z); g.castShadow = g.receiveShadow = true; this.group.add(g);
@@ -453,6 +510,7 @@ class World {
     hole.rotation.x = -Math.PI / 2; hole.position.set(m.x, y + .08, m.z); this.group.add(hole);
     const glow = new T.Sprite(new T.SpriteMaterial({ map: TEX.glow, color: '#ff5a1f', transparent: true, opacity: .35, depthWrite: false, blending: T.AdditiveBlending }));
     glow.scale.set(7, 7, 1); glow.position.set(m.x, y + 1.2, m.z); this.group.add(glow);
+    const rim = natMesh('nest_rim', 'misc'); if (rim) { rim.scale.setScalar(2.7); rim.position.set(m.x, y - .1, m.z); this.group.add(rim); this.raster(rim); }
     // granules rouges du dôme
     const rg = this.rockGeo(99), im = new T.InstancedMesh(rg, new T.MeshStandardMaterial({ color: '#8a4a2c', roughness: .9 }), 420);
     const mt = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), s = new T.Vector3(), p = new T.Vector3(), r = mkRng(5);
@@ -473,7 +531,12 @@ class World {
       const col = new T.Color(f.color || '#6dffd6');
       const capM = new T.MeshStandardMaterial({ color: col.clone().multiplyScalar(.35), emissive: col, emissiveIntensity: .5, roughness: .4 });
       const stM = new T.MeshStandardMaterial({ color: '#8a7f70', emissive: col, emissiveIntensity: .12, roughness: .7 });
-      for (let i = 0; i < (f.n || 10); i++) {
+      const fg = natGeo('fungus');
+      if (fg) {
+        const fm = new T.MeshStandardMaterial({ vertexColors: true, color: col.clone().lerp(new T.Color('#ffffff'), .3), emissive: col, emissiveIntensity: .55, roughness: .4 });
+        for (let i = 0; i < Math.ceil((f.n || 10) / 3); i++) { const [x, z] = openSpot(f.x, f.z, f.r || 4), m = new T.Mesh(fg, fm), k = .9 + rng() * 1.3; m.scale.setScalar(k); m.position.set(x, this.floorAt(x, z) - .05, z); m.rotation.y = rng() * 6.28; g.add(m); }
+      }
+      for (let i = 0; i < (fg ? 0 : (f.n || 10)); i++) {
         const [x, z] = openSpot(f.x, f.z, f.r || 4), y = this.floorAt(x, z), h = .3 + rng() * 1.1, r = .15 + rng() * .5;
         const st = new T.Mesh(limbGeo(h, .05 + r * .15), stM); st.rotation.z = Math.PI / 2 + (rng() - .5) * .4; st.position.set(x, y, z); g.add(st);
         const cp = new T.Mesh(ANT.sph, capM); cp.scale.set(r, r * .45, r); cp.position.set(x, y + h, z); g.add(cp);
@@ -488,8 +551,20 @@ class World {
       const s = L.shapes[Math.floor(rng() * L.shapes.length)];
       const [x, z] = s.b ? openSpot(lerp(s.a[0], s.b[0], rng()), lerp(s.a[1], s.b[1], rng()), s.r * .6) : openSpot(s.x, s.z, s.r * .8);
       const c = this.ceilAt(x, z), f = this.floorAt(x, z), len = Math.min(c - f - 1.6, 1 + rng() * 4); if (len < .6) continue;
+      const nr = natMesh('root_' + (i % 3), 'wood');
+      if (nr) { nr.scale.set(len * .9, len, len * .9); nr.position.set(x, c + .25, z); nr.rotation.y = rng() * 6.28; nr.castShadow = false; g.add(nr); continue; }
       const m = new T.Mesh(new T.CylinderGeometry(.02, .05 + rng() * .1, len, 6), rootM);
       m.position.set(x, c - len / 2 + .2, z); m.rotation.set((rng() - .5) * .3, 0, (rng() - .5) * .3); g.add(m);
+    }
+    // arches de racines à l'entrée des tunnels (là où un tunnel quitte une chambre)
+    if (natGeo('arch')) for (const t of L.shapes) {
+      if (!t.b) continue;
+      for (const [p, q] of [[t.a, t.b], [t.b, t.a]]) {
+        const room = L.shapes.find(r => !r.b && Math.hypot(r.x - p[0], r.z - p[1]) < .5); if (!room) continue;
+        const dx = q[0] - p[0], dz = q[1] - p[1], l = Math.hypot(dx, dz), d = room.r - .8; if (l < d + 2) continue;
+        const x = p[0] + dx / l * d, z = p[1] + dz / l * d, m = natMesh('arch', 'wood');
+        m.scale.setScalar(t.r * 2.3); m.position.set(x, this.floorAt(x, z) - .1, z); m.rotation.y = Math.atan2(dx, dz) + Math.PI / 2; g.add(m); this.raster(m);
+      }
     }
     // cailloux
     const rgeo = this.rockGeo(3 + (L.seed || 1)), rmat = new T.MeshStandardMaterial({ color: '#6c5a48', map: TEX.rock, normalMap: TEX.rockN, roughness: .9 });
@@ -497,19 +572,20 @@ class World {
       const s = L.shapes[Math.floor(rng() * L.shapes.length)];
       const [x, z] = s.b ? openSpot(lerp(s.a[0], s.b[0], rng()), lerp(s.a[1], s.b[1], rng()), s.r * .5) : openSpot(s.x, s.z, s.r * .85);
       const k = .3 + rng() * (s.b ? .5 : 1.3), y = this.floorAt(x, z);
-      const m = new T.Mesh(rgeo, rmat); m.scale.setScalar(k); m.position.set(x, y - k * .2, z); m.rotation.y = rng() * 6; g.add(m);
-      if (k > .7) this.addCol(x, z, k * .9, y + k * .55);
+      const m = natMesh('rock_' + (i % 5), 'cave') || new T.Mesh(rgeo, rmat); m.scale.setScalar(k); m.position.set(x, y - k * .2, z); m.rotation.y = rng() * 6; g.add(m);
+      this.raster(m);
     }
     // réserves de graines
     const seedM = [new T.MeshStandardMaterial({ color: '#c9a46a', roughness: .5 }), new T.MeshStandardMaterial({ color: '#a8783a', roughness: .45 })];
     for (const sd of L.seeds || EMPTY) for (let i = 0; i < sd.n; i++) {
       const [x, z] = openSpot(sd.x, sd.z, sd.r), k = .45 + rng() * .5;
-      const m = new T.Mesh(ANT.sph, seedM[i % 2]); m.scale.set(k * 1.2, k * .7, k * .8); m.position.set(x, this.floorAt(x, z) + k * .5, z); m.rotation.y = rng() * 6; g.add(m);
+      const m = natMesh('seed', 'soft') || new T.Mesh(ANT.sph, seedM[i % 2]); if (m.geometry === ANT.sph) m.scale.set(k * 1.2, k * .7, k * .8); else m.scale.setScalar(k * 1.1); m.position.set(x, this.floorAt(x, z) + k * .5, z); m.rotation.y = rng() * 6; g.add(m);
     }
     // œufs et larves (nurserie)
     const eggM = new T.MeshPhysicalMaterial({ color: '#f3ead2', roughness: .35, clearcoat: .6, transmission: 0 });
     for (const nu of L.nursery || EMPTY) for (let i = 0; i < nu.n; i++) {
       const [x, z] = openSpot(nu.x, nu.z, nu.r), y = this.floorAt(x, z);
+      const ne = natMesh(i % 3 ? 'egg' : 'larva', 'soft'); if (ne) { ne.scale.setScalar(i % 3 ? .3 : .55); ne.position.set(x, y + (i % 3 ? .18 : .12), z); ne.rotation.y = rng() * 6; g.add(ne); continue; }
       if (i % 3) { const m = new T.Mesh(ANT.sph, eggM); m.scale.set(.22, .2, .32); m.position.set(x, y + .2, z); m.rotation.y = rng() * 6; g.add(m); }
       else { const m = new T.Mesh(new T.TorusGeometry(.4, .22, 10, 16, 4.2), eggM); m.position.set(x, y + .25, z); m.rotation.set(Math.PI / 2, 0, rng() * 6); g.add(m); }
     }

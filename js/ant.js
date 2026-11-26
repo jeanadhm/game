@@ -112,7 +112,8 @@ function buildAntProc(o) {
 const CHAR = new T.Color('#0a0705');
 ANT.load = done => {
   if (!T.GLTFLoader || !T.SkeletonUtils) { done(); return; }
-  const L = new T.GLTFLoader(); let n = 2; const fin = () => { if (--n === 0) done(); };
+  const L = new T.GLTFLoader(); let n = 3; const fin = () => { if (--n === 0) done(); };
+  L.load('models/nature.glb', g => { ANT.nature = g; fin(); }, undefined, () => fin());
   L.load('models/ant.glb', g => { ANT.gltf = g; fin(); }, undefined, () => fin());
   L.load('models/vm.glb', g => { ANT.vm = g; fin(); }, undefined, () => fin());
 };
