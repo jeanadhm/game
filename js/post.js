@@ -8,6 +8,7 @@ POST.init = () => {
     rt.texture.encoding = T.sRGBEncoding;
     const c = new T.EffectComposer(renderer, rt);
     c.addPass(new T.RenderPass(scene, cam));
+    if (T.BokehPass) { const bokeh = new T.BokehPass(scene, cam, { focus: 12, aperture: .00025, maxblur: .0055, width: innerWidth, height: innerHeight }); c.addPass(bokeh); POST.bokeh = bokeh; }
     const bloom = new T.UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), .5, .45, .8);
     c.addPass(bloom);
     const grade = new T.ShaderPass({
@@ -21,6 +22,8 @@ POST.init = () => {
     Object.assign(POST, { c, bloom, grade });
   } catch (e) { POST.c = null; }
 };
+POST.dist = 12;
+POST.focus = (d, dt) => { if (!POST.bokeh) return; POST.dist += (clamp(d, .6, 60) - POST.dist) * Math.min(1, dt * 6); POST.bokeh.uniforms.focus.value = POST.dist; };
 POST.resize = (w, h, pr) => { if (!POST.c) return; POST.c.setPixelRatio(pr); POST.c.setSize(w, h); };
 POST.mood = cave => {
   if (!POST.c) return;

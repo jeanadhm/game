@@ -64,10 +64,24 @@ function makeTextures() {
     for (let y = 50; y < h; y += 34) { g.beginPath(); g.moveTo(w / 2, y); g.quadraticCurveTo(w * .3, y - 20, 4, y - 54); g.moveTo(w / 2, y); g.quadraticCurveTo(w * .7, y - 20, w - 4, y - 54); g.stroke(); }
     for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(30,40,0,${Math.random() * .09})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
   });
+  TEX.soilN = normalFrom(TEX.soil, 3); TEX.rockN = normalFrom(TEX.rock, 2.5);
   TEX.glow = canvasTex(128, 128, (g, w) => {
     const gr = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
     gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.25, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = gr; g.fillRect(0, 0, w, w);
   });
   TEX.glow.encoding = T.LinearEncoding;
+}
+
+// normal map calculée à partir de la luminosité d'une texture (relief du grain)
+function normalFrom(tex, k) {
+  const src = tex.image, w = src.width, h = src.height, sd = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'), id = g.createImageData(w, h), d = id.data;
+  const L = (x, y) => sd[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (L(x + 1, y) - L(x - 1, y)) * k, dy = (L(x, y + 1) - L(x, y - 1)) * k, n = 1 / Math.hypot(dx, dy, 1), i = (y * w + x) * 4;
+    d[i] = (-dx * n * .5 + .5) * 255; d[i + 1] = (dy * n * .5 + .5) * 255; d[i + 2] = n * 255; d[i + 3] = 255;
+  }
+  g.putImageData(id, 0, 0);
+  const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; return t;
 }

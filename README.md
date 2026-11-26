@@ -5,12 +5,15 @@ FPS 3D jouable dans le navigateur : une soldate fourmi noire affronte la colonie
 ## Jouer
 Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.github.io/game/). Three.js (r128) est chargé depuis un CDN.
 
-Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
+Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
 
-## Contenu (v2.1)
+## Contenu (v3.0)
 - 3 chapitres : La Prairie (surface), Les Galeries (terriers, 3 cocons à retrouver), La Chambre royale (boss Major Ignis)
-- 4 armes : mandibules, acide formique, graine explosive, dard chargé (paralyse)
-- 5 ennemis : éclaireuse, soldate, cracheuse, Ailée (volante), boss
+- 4 armes : mandibules, acide formique, graine explosive, dard chargé (paralyse), et un bouclier temporaire (clic droit ou F)
+- 6 ennemis : éclaireuse, soldate, cracheuse, Ailée (volante), Méga-soldate (blindée devant, frappe au sol), boss
+- Escouade en option : 2 alliées noires (Nyx à l'acide, Brume au corps à corps) qu'on peut relever
+- Mode histoire avec cinématiques de chapitre et présentations des grandes ennemies
+- Marche par cinématique inverse : chaque patte se pose au sol, le corps suit le relief
 - Évolutions entre les chapitres, achetées avec le nectar
 - 3 difficultés, points de sauvegarde, réglage graphique (halo lumineux, ombres)
 - Fourmis modélisées dans Blender (maillage organique, squelette, animations de marche et d'attente), carbonisation à la mort
@@ -26,7 +29,8 @@ js/audio.js       sons (Web Audio)
 js/ant.js         modèle de fourmi et animation
 js/world.js       terrain, galeries, décor, collisions, navigation
 js/fx.js          particules, projectiles, explosions
-js/enemies.js     IA des fourmis rouges et du boss
+js/enemies.js     IA des fourmis rouges, Méga-soldate et boss
+js/allies.js      escouade (2 alliées)
 js/player.js      joueuse, armes, vue à la première personne, objets
 js/hud.js         interface et commandes
 js/upgrades.js    nectar, évolutions, difficulté, qualité, sauvegarde
@@ -46,6 +50,7 @@ python tools/build_ant.py models
 ```
 
 ## Versions
+- **v3.0** : marche par IK sans glissement, bouclier, escouade, Méga-soldates, cinématiques, collisions exactes sur les cailloux, vent en rafales et herbe qui s'écarte, tapis d'herbe, profondeur de champ, normal maps
 - **v2.1** : fourmis modélisées dans Blender avec squelette et animations, carbonisation à la mort, plateformes (feuilles, cailloux, champignons)
 - **v2.0** : dard chargé, Ailées volantes, évolutions au nectar, difficulté, points de sauvegarde, halo lumineux et réglage graphique, barre de vie de la cible
 - **v0.1** : prototype (3 chapitres, 3 armes, 4 ennemis, boss)

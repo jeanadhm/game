@@ -1,7 +1,7 @@
 'use strict';
 // Colonie Noire · interface (HUD, dialogues) et commandes (clavier, souris, tactile)
 const $ = id => document.getElementById(id);
-const IN = { k: {}, dx: 0, dy: 0, fire: false, firePress: false, jump: false, wsel: 0, wheel: 0, locked: false, noLock: false, touch: false, mx: 0, my: 0, mrun: false };
+const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: false, jump: false, wsel: 0, wheel: 0, locked: false, noLock: false, touch: false, mx: 0, my: 0, mrun: false };
 
 (() => {
   const KEYMAP = { KeyW: 'f', KeyZ: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', KeyQ: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', ShiftLeft: 'run', ShiftRight: 'run' };
@@ -11,6 +11,7 @@ const IN = { k: {}, dx: 0, dy: 0, fire: false, firePress: false, jump: false, ws
     if (G.state === 'play' && (k || e.code === 'Space')) e.preventDefault();
     if (e.code === 'Space' && !e.repeat) IN.jump = true;
     if (/^Digit[1-4]$/.test(e.code)) IN.wsel = +e.code.slice(5);
+    if (e.code === 'KeyF' || e.code === 'KeyE') IN.shieldPress = true;
     if ((e.code === 'Escape' || e.code === 'KeyP') && G.state === 'play' && !IN.locked) G.pause();
   });
   addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) IN.k[k] = false; });
@@ -20,6 +21,7 @@ const IN = { k: {}, dx: 0, dy: 0, fire: false, firePress: false, jump: false, ws
     if (G.state !== 'play' || IN.touch) return;
     if (!IN.locked && !IN.noLock) { HUD.lock(); return; }
     if (e.button === 0) { IN.fire = true; IN.firePress = true; }
+    if (e.button === 2) IN.shieldPress = true;
   });
   addEventListener('mouseup', e => { if (e.button === 0) IN.fire = false; });
   addEventListener('mousemove', e => { if (G.state === 'play' && !IN.touch && (IN.locked || IN.noLock)) { IN.dx += e.movementX || 0; IN.dy += e.movementY || 0; } });
@@ -29,7 +31,7 @@ const IN = { k: {}, dx: 0, dy: 0, fire: false, firePress: false, jump: false, ws
     IN.locked = document.pointerLockElement === cv;
     if (!IN.locked && G.state === 'play' && !IN.noLock) G.pause();
   });
-  document.addEventListener('pointerlockerror', () => { IN.noLock = true; HUD.notice('Souris libre : Échap ou P pour la pause', 3); });
+  document.addEventListener('pointerlockerror', () => { IN.fails = (IN.fails || 0) + 1; if (IN.fails >= 2) { IN.noLock = true; HUD.notice('Souris libre : Échap ou P pour la pause', 3); } else HUD.notice('Clique dans le jeu pour capturer la souris', 2.5); });
 
   // tactile : joystick à gauche, visée à droite, boutons
   const stick = $('stick'), knob = stick.firstElementChild; let sid = null, sx = 0, sy = 0, lid = null, lx = 0, ly = 0;
@@ -49,6 +51,7 @@ const IN = { k: {}, dx: 0, dy: 0, fire: false, firePress: false, jump: false, ws
   hold('tFire', () => { IN.fire = true; IN.firePress = true; }, () => { IN.fire = false; });
   hold('tJump', () => { IN.jump = true; });
   hold('tWeap', () => { IN.wheel += 1; });
+  hold('tShield', () => { IN.shieldPress = true; });
   hold('tPause', () => G.pause());
 })();
 
@@ -69,6 +72,11 @@ const HUD = (() => {
       dmgT = Math.min(1, dmgT + amt / 30);
       if (ang !== null) { const d = $('dmgDir'); d.style.transform = `rotate(${-ang}rad)`; d.classList.remove('on'); void d.offsetWidth; d.classList.add('on'); }
     },
+    allies() {
+      $('allies').innerHTML = ALLY.list.map(a => `<div class="ally${a.down ? ' down' : ''}"><span></span><div class="track"><div style="width:${a.hp / a.max * 100}%"></div></div></div>`).join('');
+      [...$('allies').querySelectorAll('span')].forEach((el, i) => el.textContent = ALLY.list[i].name + (ALLY.list[i].down ? ' · à terre' : ''));
+    },
+    prompt(t) { const p = $('prompt'); if (p.textContent !== t) { p.textContent = t; p.hidden = !t; } },
     nectar() { $('nect').textContent = UP.nectar; $('nectW').classList.remove('bump'); void $('nectW').offsetWidth; $('nectW').classList.add('bump'); },
     boss(name, frac) { const b = $('boss'); if (frac === null) { b.hidden = true; return; } b.hidden = false; $('bossName').textContent = name; $('bossBar').style.width = (frac * 100) + '%'; },
     update(dt) {
@@ -85,6 +93,8 @@ const HUD = (() => {
       const am = P.weapon === 1 ? '∞' : P.weapon === 2 ? Math.floor(P.acid) + '%' : P.weapon === 3 ? P.seeds + ' / 6' : P.darts + ' / 8';
       if (am !== lastAmmo) { lastAmmo = am; $('wAmmo').textContent = am; }
       $('acidBar').style.width = P.acid + '%';
+      const sb = $('shieldBar'); sb.style.width = (P.shieldT > 0 ? P.shieldT / 4 * 100 : 100 - P.shieldCd / 10 * 100) + '%'; sb.className = P.shieldT > 0 ? 'on' : P.shieldCd > 0 ? 'cd' : '';
+      if (ALLY.list.length && Math.random() < dt * 4) HUD.allies();
       // boussole vers l'objectif
       const tg = G.target && G.target();
       if (tg) {

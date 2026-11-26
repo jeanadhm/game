@@ -46,7 +46,7 @@ const lamp = new T.PointLight('#ffd7a0', 0, 24, 1.5); scene.add(lamp);
 const world = new World(scene);
 FX.init(scene); P.initVM(); POST.init();
 
-const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
+const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, squad: 0, cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
 const resetStats = () => { G.stats = { kills: 0, heads: 0, shots: 0, hits: 0, ahits: 0, time: 0, deaths: 0 }; };
 resetStats();
 
@@ -65,7 +65,7 @@ function applyQuality() {
     if (sh) sun.shadow.mapSize.set(q.shadow, q.shadow);
     scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
   }
-  POST.on = q.bloom && !!POST.c;
+  POST.on = q.bloom && !!POST.c; if (POST.bokeh) POST.bokeh.enabled = G.qual === 2;
   for (const b of document.querySelectorAll('.qual button')) b.classList.toggle('on', +b.dataset.q === G.qual);
   resize();
 }
@@ -75,7 +75,7 @@ function loadLevel(i, cp) {
   if (cp && cp.li !== i) cp = null;
   const L = LEVELS[i]; Object.assign(G, { li: i, L, lt: 0, fired: new Set(), cool: {}, cocoons: 0, taken: cp ? cp.taken.slice() : [], boss: null, queen: null });
   if (!cp) G.cp = null;
-  EN.clear(); PK.clear(); FX.clear(); HUD.boss(null, null); HUD.clearSay();
+  EN.clear(); PK.clear(); FX.clear(); ALLY.clear(); HUD.boss(null, null); HUD.clearSay(); HUD.prompt('');
   world.build(L);
   const cave = L.type === 'cave';
   sky.visible = !cave; scene.background = cave ? new T.Color('#030201') : null;
@@ -91,6 +91,7 @@ function loadLevel(i, cp) {
   G.cocoons = G.taken.length;
   if (L.setup) L.setup(L, G);
   P.spawn(cp ? { start: { x: cp.x, z: cp.z, yaw: cp.yaw } } : L);
+  ALLY.spawnSquad();
   if (cp) {
     // reprise au point de sauvegarde : on ne rejoue pas les dialogues déjà vus
     L.events.forEach((ev, k) => {
@@ -132,6 +133,7 @@ function chapterButtons() {
   $('chapters').innerHTML = LEVELS.map((L, i) => `<button class="chap" data-i="${i}" ${i >= G.unlocked ? 'disabled' : ''}><b>${L.chapter}</b><span>${i < G.unlocked ? L.name : 'Verrouillé'}</span></button>`).join('');
   for (const b of $('chapters').querySelectorAll('button')) b.onclick = () => { SFX.init(); resetStats(); P.reset(); story(+b.dataset.i); };
   for (const b of document.querySelectorAll('#diff button')) b.classList.toggle('on', +b.dataset.d === G.diff);
+  for (const b of document.querySelectorAll('#squad button')) b.classList.toggle('on', +b.dataset.s === G.squad);
   $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';
 }
 function titleScreen() {
@@ -147,8 +149,36 @@ function story(i) {
   const b = $('bStart'); b.disabled = true; b.textContent = 'Chargement…';
   setTimeout(() => { loadLevel(i); b.disabled = false; b.textContent = 'Commencer'; b.focus(); }, 60);
 }
+// --- cinématiques : survol du chapitre à l'arrivée, présentation des grandes ennemies
+function startCine() {
+  const L = G.L; SFX.init(); HUD.lock();
+  if (!L.cine) { play(); return; }
+  const pt = a => new T.Vector3(a[0], world.floorAt(a[0], a[2]) + a[1], a[2]);
+  G.cine = { t: 0, dur: L.cineDur || 9, pos: new T.CatmullRomCurve3(L.cine.map(c => pt(c))), look: new T.CatmullRomCurve3(L.cine.map(c => pt(c.slice(3)))), lines: L.cineText || [], end: play };
+  G.state = 'cine'; show(null); HUD.show(false); $('cine').hidden = false; $('cineText').textContent = '';
+}
+G.cut = (target, title, line, dur = 3) => {
+  if (G.state !== 'play') return;
+  const s = target.d ? target.d.scale : 1, c = target.pos.clone(), r = 4 + s * 2, a0 = Math.atan2(cam.position.x - c.x, cam.position.z - c.z);
+  const hy = world.cave ? 1.2 + s * .8 : 4 + s * 1.6;
+  const pts = [0, .5, 1].map(k => { const a = a0 + k * .9; const x = c.x + Math.sin(a) * r, z = c.z + Math.cos(a) * r; return new T.Vector3(x, Math.min(world.ceilAt(x, z) - .6, Math.max(world.floorAt(x, z), c.y) + hy), z); });
+  const look = new T.Vector3(c.x, c.y + s * .5, c.z);
+  G.cine = { t: 0, dur, pos: new T.CatmullRomCurve3(pts), look: new T.CatmullRomCurve3([look, look.clone()]), lines: [title + (line ? ' · ' + line : '')], end: () => { G.state = 'play'; HUD.show(true); } };
+  G.state = 'cine'; HUD.show(false); $('cine').hidden = false; $('cineText').textContent = '';
+};
+function cineFrame(dt) {
+  const c = G.cine; c.t += dt; const k = Math.min(1, c.t / c.dur);
+  cam.position.copy(c.pos.getPoint(k)); cam.lookAt(c.look.getPoint(k));
+  const line = c.lines[Math.min(c.lines.length - 1, Math.floor(k * c.lines.length))] || '';
+  if ($('cineText').textContent !== line) $('cineText').textContent = line;
+  if (k >= 1) endCine();
+}
+function endCine() { if (!G.cine) return; const e = G.cine.end; G.cine = null; $('cine').hidden = true; e(); }
+addEventListener('keydown', e => { if (G.state === 'cine' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) endCine(); });
+$('c').addEventListener('mousedown', () => { if (G.state === 'cine') endCine(); });
+$('cine').addEventListener('pointerdown', () => { if (G.state === 'cine') endCine(); });
 function play() {
-  SFX.init(); G.state = 'play'; show(null); HUD.show(true); HUD.lock();
+  SFX.init(); G.state = 'play'; show(null); HUD.show(true); if (!IN.locked) HUD.lock();
   if (IN.noLock && !IN.touch) HUD.notice('Souris libre : Échap ou P pour la pause', 3);
 }
 G.pause = () => { if (G.state !== 'play') return; G.state = 'pause'; IN.fire = false; IN.k = {}; show('pause'); HUD.show(false); if (document.pointerLockElement) document.exitPointerLock(); };
@@ -172,7 +202,8 @@ G.complete = () => {
 $('bPlay').onclick = () => { SFX.init(); resetStats(); resetUpgrades(); SAVE.save(); P.reset(); story(0); };
 for (const b of document.querySelectorAll('#diff button')) b.onclick = () => { G.diff = +b.dataset.d; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.qual button')) b.onclick = () => { G.qual = +b.dataset.q; SAVE.save(); applyQuality(); };
-$('bStart').onclick = play;
+$('bStart').onclick = startCine;
+for (const b of document.querySelectorAll('#squad button')) b.onclick = () => { G.squad = +b.dataset.s; SAVE.save(); chapterButtons(); };
 $('bResume').onclick = () => { G.state = 'play'; show(null); HUD.show(true); HUD.lock(); };
 $('bRestart').onclick = () => { P.reset(); loadLevel(G.li); play(); };
 $('bRetry').onclick = () => { P.reset(); loadLevel(G.li, G.cp); play(); };
@@ -194,15 +225,19 @@ function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; G.time += dt;
   if (G.state === 'play') {
     G.lt += dt; G.stats.time += dt;
-    P.update(dt); EN.update(dt, false); PK.update(dt); FX.update(dt); runEvents(dt);
+    P.update(dt); EN.update(dt, false); ALLY.update(dt); PK.update(dt); FX.update(dt); runEvents(dt);
+    if (POST.bokeh && POST.on) { const d = new T.Vector3(); cam.getWorldDirection(d); const wb = world.rayBlock(cam.position, d, 60), h = EN.rayHit(cam.position, d, wb); POST.focus(h ? h.dist : wb, dt); }
     if (G.L.tick) G.L.tick(dt, G);
     if (G.state === 'play') HUD.objective(G.L.objective(G));
     HUD.update(dt); SFX.tick(dt); FX.motes(dt, world.cave);
+  } else if (G.state === 'cine') {
+    cineFrame(dt); EN.update(dt, true); ALLY.update(dt); FX.update(dt); HUD.update(dt);
+    if (POST.bokeh) POST.focus(G.cine ? cam.position.distanceTo(G.cine.look.getPoint(1)) : 12, dt);
   } else if (G.state === 'title' || G.state === 'story') {
     if (G.state === 'title' && G.li === 0) titleCam();
     EN.update(dt, true); FX.update(dt); FX.motes(dt, world.cave); if (G.L && G.L.tick) G.L.tick(dt, G);
   } else if (G.state === 'dead' || G.state === 'done') { FX.update(dt); EN.update(dt, true); }
-  if (world.windU) world.windU.value = G.time;
+  if (world.floor) world.update(G.time);
   sun.target.position.set(Math.round(cam.position.x), 0, Math.round(cam.position.z));
   sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 100); sun.target.updateMatrixWorld();
   lamp.position.copy(cam.position); lamp.position.y += .3;

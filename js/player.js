@@ -8,7 +8,7 @@ const WEAPONS = [null,
 ];
 const P = {
   pos: new T.Vector3(), vel: new T.Vector3(), yaw: 0, pitch: 0, hp: 100, armor: 50, onGround: true,
-  weapon: 2, acid: 100, seeds: 3, darts: 4, charge: 0, maxHp: 100, cd: 0, biteT: 0, bobT: 0, stepS: 0, dead: false, regen: 0, switchT: 0, recoil: 0, sens: 1, glowT: 0,
+  weapon: 2, acid: 100, seeds: 3, darts: 4, charge: 0, maxHp: 100, shieldT: 0, shieldCd: 0, shieldHp: 0, landT: 0, cd: 0, biteT: 0, bobT: 0, stepS: 0, dead: false, regen: 0, switchT: 0, recoil: 0, sens: 1, glowT: 0,
 };
 const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20), root: new T.Group(), mand: [], antn: [] };
 (() => {
@@ -35,6 +35,16 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     }
     VM.glow = new T.Sprite(new T.SpriteMaterial({ map: TEX.glow, color: '#a6ff3d', transparent: true, opacity: .0, depthWrite: false, blending: T.AdditiveBlending }));
     VM.glow.position.set(0, -.24, -.6); VM.glow.scale.set(.22, .22, 1); VM.root.add(VM.glow);
+    // bouclier de phéromones : coque hexagonale translucide devant la tête
+    const hex = canvasTex(256, 256, (g, w) => {
+      g.fillStyle = 'rgba(0,0,0,0)'; g.fillRect(0, 0, w, w); g.strokeStyle = 'rgba(160,255,220,.95)'; g.lineWidth = 3;
+      const r = 22, hh = r * Math.sqrt(3);
+      for (let y = -1; y < 8; y++) for (let x = -1; x < 8; x++) { const cx = x * r * 3 + (y % 2 ? r * 1.5 : 0), cy = y * hh / 2; g.beginPath(); for (let k = 0; k < 7; k++) { const a = k / 6 * Math.PI * 2; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.stroke(); }
+    }, true);
+    hex.encoding = T.LinearEncoding; hex.repeat.set(3, 2);
+    VM.shield = new T.Mesh(new T.SphereGeometry(.75, 40, 20, Math.PI * .2, Math.PI * .6, Math.PI * .28, Math.PI * .44),
+      new T.MeshBasicMaterial({ map: hex, color: '#7dffd0', transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }));
+    VM.shield.rotation.y = Math.PI; VM.shield.position.set(0, -.05, .1); VM.shield.visible = false; VM.root.add(VM.shield);
     VM.dart = new T.Mesh(new T.ConeGeometry(.012, .3, 8), new T.MeshStandardMaterial({ color: '#ffcf6a', emissive: '#ff9a1a', emissiveIntensity: 1.2, roughness: .3 }));
     VM.dart.rotation.x = -Math.PI / 2; VM.dart.position.set(0, -.22, -.62); VM.root.add(VM.dart);
     VM.seed = new T.Mesh(ANT.sph, new T.MeshStandardMaterial({ color: '#7a4f24', roughness: .5 })); VM.seed.scale.set(.08, .06, .06); VM.seed.position.set(0, -.235, -.6); VM.root.add(VM.seed);
@@ -53,10 +63,11 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     const s = L.start; P.pos.set(s.x, world.groundAt(s.x, s.z, 99), s.z); P.vel.set(0, 0, 0); P.yaw = s.yaw; P.pitch = 0;
     P.dead = false; P.cd = 0; P.biteT = 0;
   };
-  P.reset = () => { P.maxHp = 100 + 10 * UP.lv.chitine; P.hp = P.maxHp; P.armor = 50 + 15 * UP.lv.chitine; P.acid = 100; P.seeds = 3; P.darts = 4; P.charge = 0; P.weapon = 2; };
+  P.reset = () => { P.shieldT = 0; P.shieldCd = 0; P.maxHp = 100 + 10 * UP.lv.chitine; P.hp = P.maxHp; P.armor = 50 + 15 * UP.lv.chitine; P.acid = 100; P.seeds = 3; P.darts = 4; P.charge = 0; P.weapon = 2; };
 
   P.damage = (amt, from) => {
     if (P.dead || G.state !== 'play') return;
+    if (P.shieldT > 0) { P.block(amt, from); return; }
     amt *= diff().dmg;
     const a = Math.min(P.armor, amt * .6); P.armor -= a; P.hp -= amt - a;
     SFX.hurt(); FX.shake = Math.max(FX.shake, .35);
@@ -66,6 +77,10 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     if (P.hp <= 0) { P.hp = 0; P.dead = true; G.die(); }
   };
 
+  P.block = (amt, from) => {
+    P.shieldHp -= amt; SFX.block(); P.shieldHit = 1; FX.shake = Math.max(FX.shake, .15);
+    if (P.shieldHp <= 0) { P.shieldT = 0; P.shieldCd = 10; SFX.shield(false); HUD.notice('Bouclier brisé', 1.2); }
+  };
   P.select = w => { if (w === P.weapon || w < 1 || w > 4) return; P.weapon = w; P.switchT = .25; P.charge = 0; P.cd = Math.max(P.cd, .2); };
 
   P.update = dt => {
@@ -77,7 +92,14 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     // déplacement
     let f = (IN.k.f ? 1 : 0) - (IN.k.b ? 1 : 0) + IN.my, st = (IN.k.r ? 1 : 0) - (IN.k.l ? 1 : 0) + IN.mx;
     const ml = Math.hypot(f, st); if (ml > 1) { f /= ml; st /= ml; }
-    const run = (IN.k.run || IN.mrun) && f > .3, spd = (run ? 7.8 : 4.6) * (1 + .07 * UP.lv.pattes) * (P.charge > 0 ? .6 : 1);
+    // bouclier temporaire (clic droit) : 4 s ou jusqu'à rupture, puis recharge
+    if (IN.shieldPress) {
+      IN.shieldPress = false;
+      if (P.shieldT <= 0 && P.shieldCd <= 0) { P.shieldT = 4; P.shieldHp = 90 * (1 + .15 * UP.lv.chitine); SFX.shield(true); P.charge = 0; }
+      else if (P.shieldT <= 0) HUD.notice(`Bouclier en recharge : ${Math.ceil(P.shieldCd)} s`, 1);
+    }
+    if (P.shieldT > 0) { P.shieldT -= dt; if (P.shieldT <= 0) { P.shieldCd = 9; SFX.shield(false); } } else P.shieldCd = Math.max(0, P.shieldCd - dt);
+    const run = (IN.k.run || IN.mrun) && f > .3, spd = (run ? 7.8 : 4.6) * (1 + .07 * UP.lv.pattes) * (P.charge > 0 ? .6 : 1) * (P.shieldT > 0 ? .75 : 1);
     const sy = Math.sin(P.yaw), cy = Math.cos(P.yaw);
     const tx = (-sy * f + cy * st) * spd, tz = (-cy * f - sy * st) * spd;
     const acc = P.onGround ? 11 : 2.5;
@@ -88,22 +110,27 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     const ground = world.groundAt(P.pos.x, P.pos.z, P.pos.y);
     const wasGround = P.onGround;
     P.pos.y += P.vel.y * dt;
-    if (P.pos.y <= ground) { P.pos.y = ground; if (P.vel.y < 0) P.vel.y = 0; P.onGround = true; }
+    if (P.pos.y <= ground) { P.pos.y = ground; if (!wasGround && P.vel.y < -4) { P.landT = Math.min(.14, -P.vel.y * .013); SFX.land(); } if (P.vel.y < 0) P.vel.y = 0; P.onGround = true; }
     else if (wasGround && P.vel.y <= 0 && P.pos.y - ground < .4) { P.pos.y = ground; P.vel.y = 0; P.onGround = true; }
     else P.onGround = false;
     if (world.cave) { const c = world.ceilAt(P.pos.x, P.pos.z); if (P.pos.y + .8 > c) { P.pos.y = Math.max(ground, c - .8); P.vel.y = Math.min(P.vel.y, 0); } }
     // balancement de la tête + bruits de pas
+    // pas : un appui toutes les 0,5 unité, la tête plonge à chaque pas et se balance d'un côté à l'autre
     const hs = Math.hypot(P.vel.x, P.vel.z);
-    if (P.onGround && hs > .5) { P.bobT += dt * hs * 2.1; const s = Math.floor(P.bobT / Math.PI); if (s !== P.stepS) { P.stepS = s; SFX.step(); } }
+    if (P.onGround && hs > .3) { P.bobT += hs * dt / .5 * Math.PI; const s = Math.floor(P.bobT / Math.PI); if (s !== P.stepS) { P.stepS = s; SFX.step(); if (run) SFX.tap(1.2); } }
+    else P.bobT = Math.round(P.bobT / Math.PI) * Math.PI * .1 + P.bobT * .9;
     const bob = P.onGround ? Math.min(1, hs / 5) : 0;
-    cam.position.set(P.pos.x, P.pos.y + .62 + Math.sin(P.bobT * 2) * .03 * bob, P.pos.z);
-    E.set(P.pitch + (Math.random() - .5) * FX.shake * .03, P.yaw + (Math.random() - .5) * FX.shake * .03, Math.cos(P.bobT) * .006 * bob);
+    P.landT = Math.max(0, P.landT - dt * .9);
+    const dip = -Math.abs(Math.sin(P.bobT)) * .045 * bob - P.landT, sway = Math.sin(P.bobT * .5) * .025 * bob;
+    cam.position.set(P.pos.x + Math.cos(P.yaw) * sway, P.pos.y + .66 + dip, P.pos.z - Math.sin(P.yaw) * sway);
+    const fov = run && hs > 5 ? 82 : 74; if (Math.abs(cam.fov - fov) > .05) { cam.fov += (fov - cam.fov) * Math.min(1, dt * 6); cam.updateProjectionMatrix(); FX.setScale(renderer.domElement.height, cam.fov); }
+    E.set(P.pitch + (Math.random() - .5) * FX.shake * .03 + P.landT * .3, P.yaw + (Math.random() - .5) * FX.shake * .03, Math.sin(P.bobT * .5) * .01 * bob);
     cam.quaternion.setFromEuler(E);
     // armes
     P.cd -= dt; P.regen -= dt; P.switchT = Math.max(0, P.switchT - dt);
     if (P.regen <= 0) P.acid = Math.min(100, P.acid + 16 * (1 + .25 * UP.lv.acide) * dt);
     cam.getWorldDirection(D);
-    if (P.switchT <= 0) {
+    if (P.switchT <= 0 && P.shieldT <= 0) {
       if (P.weapon === 1 && IN.fire && P.cd <= 0) bite();
       else if (P.weapon === 2 && IN.fire && P.cd <= 0) {
         if (P.acid >= 1.5) {
@@ -169,6 +196,8 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     for (let k = 0; k < 2; k++) { VM.antn[k].rotation.x = Math.sin(t * 2.1 + k) * .06 + hs * .006; VM.antn[k].rotation.y = Math.sin(t * 1.4 + k * 2) * .05; }
     VM.glow.material.opacity = P.weapon === 2 ? .25 + P.glowT * .75 + Math.sin(t * 5) * .05 : 0;
     VM.seed.visible = P.weapon === 3 && P.seeds > 0 && P.cd < .3;
+    P.shieldHit = Math.max(0, (P.shieldHit || 0) - dt * 4);
+    VM.shield.visible = P.shieldT > 0; if (P.shieldT > 0) { VM.shield.material.opacity = .22 + P.shieldHit * .6 + Math.sin(t * 9) * .04 - (P.shieldT < 1 ? (Math.sin(t * 30) > 0 ? .15 : 0) : 0); VM.shield.material.map.offset.x = t * .05; }
     VM.dart.visible = P.weapon === 4 && P.darts > 0 && P.cd < .3;
     VM.dart.scale.set(1, 1 + P.charge * 1.4, 1); VM.dart.position.z = -.62 - P.charge * .06;
     if (P.weapon === 4) { VM.glow.material.color.set('#ffb03a'); VM.glow.material.opacity = P.charge * .9; } else VM.glow.material.color.set('#a6ff3d');

@@ -24,6 +24,8 @@
     <div class="bar"><label>Vie</label><div class="track"><div id="hpBar"></div></div><b id="hpNum">100</b></div>
     <div class="bar armor"><label>Chitine</label><div class="track"><div id="arBar"></div></div><b id="arNum">50</b></div>
     <div id="nectW">Nectar <b id="nect">0</b></div>
+    <div class="bar shield"><label>Bouclier</label><div class="track"><div id="shieldBar"></div></div><b>F</b></div>
+    <div id="allies"></div>
   </div>
   <div id="weap">
     <div id="slots"><span>1</span><span>2</span><span>3</span><span>4</span></div>
@@ -34,12 +36,15 @@
   <div id="boss" hidden><b id="bossName"></b><div class="track"><div id="bossBar"></div></div></div>
   <div id="dlg" hidden><b id="dlgWho"></b><p id="dlgText"></p></div>
   <div id="notice"></div>
+  <div id="prompt" hidden></div>
   <div id="feed"></div>
 </div>
 
+<div id="cine" hidden><i class="bar1"></i><i class="bar2"></i><p id="cineText"></p><span>Clic ou Espace pour passer</span></div>
+
 <div id="touch" hidden>
   <div id="stick" hidden><i></i></div>
-  <button id="tFire">Tir</button><button id="tJump">Saut</button><button id="tWeap">Arme</button><button id="tPause" aria-label="Pause">II</button>
+  <button id="tFire">Tir</button><button id="tJump">Saut</button><button id="tWeap">Arme</button><button id="tShield">Bouclier</button><button id="tPause" aria-label="Pause">II</button>
 </div>
 
 <section class="screen" id="title" hidden>
@@ -51,6 +56,7 @@
     <div class="opts">
       <div class="seg" id="diff"><span>Difficulté</span><button data-d="0">Facile</button><button data-d="1">Normal</button><button data-d="2">Difficile</button></div>
       <div class="seg qual"><span>Graphismes</span><button data-q="0">Basse</button><button data-q="1">Moyenne</button><button data-q="2">Haute</button></div>
+      <div class="seg" id="squad"><span>Escouade</span><button data-s="0">Solo</button><button data-s="2">Avec 2 alliées</button></div>
     </div>
     <p class="nectT" id="nectTitle"></p>
     <details class="keys"><summary>Commandes</summary>
@@ -59,6 +65,7 @@
         <div><dt>Souris</dt><dd>Regarder</dd></div>
         <div><dt>Clic gauche</dt><dd>Attaquer</dd></div>
         <div><dt>1 · 2 · 3 · 4, molette</dt><dd>Mandibules, acide, graine, dard</dd></div>
+        <div><dt>Clic droit ou F</dt><dd>Bouclier (temporaire)</dd></div>
         <div><dt>Maj</dt><dd>Courir</dd></div>
         <div><dt>Espace</dt><dd>Sauter</dd></div>
         <div><dt>Échap</dt><dd>Pause</dd></div>
@@ -67,6 +74,10 @@
     </details>
     <details class="keys"><summary>Nouveautés</summary>
       <ul>
+        <li><b>v3.0</b> · Marche réaliste : chaque patte se pose au sol (cinématique inverse), le corps suit le relief</li>
+        <li><b>v3.0</b> · Bouclier temporaire au clic droit, escouade de 2 alliées en option</li>
+        <li><b>v3.0</b> · Méga-soldates blindées, cinématiques de chapitre et de boss</li>
+        <li><b>v3.0</b> · Collisions exactes sur les cailloux, vent en rafales, herbe qui s'écarte, profondeur de champ</li>
         <li><b>v2.1</b> · Fourmis modélisées dans Blender : maillage organique, squelette et animations</li>
         <li><b>v2.1</b> · Les fourmis tuées se carbonisent puis tombent en cendres</li>
         <li><b>v2.1</b> · On marche et on saute sur les feuilles, les cailloux et les chapeaux de champignons</li>
@@ -79,7 +90,7 @@
       </ul>
     </details>
   </div>
-  <p class="ver">v2.1</p>
+  <p class="ver">v3.0</p>
 </section>
 
 <section class="screen story" id="story" hidden>
@@ -139,6 +150,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/BokehShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/BokehPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="js/util.js"></script>
@@ -147,6 +160,7 @@
 <script src="js/world.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/enemies.js"></script>
+<script src="js/allies.js"></script>
 <script src="js/player.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/upgrades.js"></script>

@@ -23,7 +23,9 @@ class World {
       const x = -h + c * res, z = -h + r * res, i = r * n + c, o = this.cave ? this.caveAt(x, z) : this.surfAt(x, z);
       this.floor[i] = o.f; this.ceil[i] = o.c; this.w[i] = o.w;
     }
-    this.hash = new Map(); this.cols = [];
+    this.hash = new Map(); this.cols = []; this.flowers = [];
+    this.ores = .25; this.on = Math.round(S / this.ores) + 1;
+    this.otop = new Float32Array(this.on * this.on).fill(-1e9); this.obot = new Float32Array(this.on * this.on).fill(1e9);
     this.buildGround();
     const rng = mkRng(L.seed || 1);
     if (this.cave) this.decorCave(rng); else this.decorSurface(rng);
@@ -84,13 +86,14 @@ class World {
     geo.setAttribute('color', new T.BufferAttribute(col, 3));
     geo.computeVertexNormals();
     TEX.soil.repeat.set(S / 7, S / 7);
-    const mat = new T.MeshStandardMaterial({ map: TEX.soil, bumpMap: TEX.soil, bumpScale: .035, vertexColors: true, roughness: .95 });
+    TEX.soilN.repeat.copy(TEX.soil.repeat);
+    const mat = new T.MeshStandardMaterial({ map: TEX.soil, normalMap: TEX.soilN, normalScale: new T.Vector2(1.1, 1.1), vertexColors: true, roughness: .95 });
     const m = new T.Mesh(geo, mat); m.receiveShadow = true; this.group.add(m);
     if (cave) {
       const cg = geo.clone(), cp = cg.attributes.position, cc = cg.attributes.color;
       for (let i = 0; i < n * n; i++) { cp.setY(i, this.ceil[i]); cc.setXYZ(i, cc.getX(i) * .7, cc.getY(i) * .66, cc.getZ(i) * .62); }
       cg.computeVertexNormals();
-      this.group.add(new T.Mesh(cg, new T.MeshStandardMaterial({ map: TEX.soil, bumpMap: TEX.soil, bumpScale: .04, vertexColors: true, roughness: 1, side: T.BackSide })));
+      this.group.add(new T.Mesh(cg, new T.MeshStandardMaterial({ map: TEX.soil, normalMap: TEX.soilN, vertexColors: true, roughness: 1, side: T.BackSide })));
     }
   }
 
@@ -129,13 +132,45 @@ class World {
     if (c.dome) { const D = c.dome, k = d2 / (D.R * D.R); return k >= 1 ? -1e9 : D.y0 + D.h * Math.sqrt(1 - k); }
     return d2 < (c.r * .85) ** 2 ? c.top : -1e9;
   }
+  // grille fine des objets solides : hauteur du dessus et du dessous, obtenue en rastérisant leurs triangles
+  raster(mesh) {
+    mesh.updateMatrixWorld(true);
+    const g = mesh.geometry, pa = g.attributes.position, ix = g.index, M = mesh.matrixWorld, n = this.on, r = this.ores, h = this.half;
+    const vs = []; for (let i = 0; i < pa.count; i++) vs.push(new T.Vector3().fromBufferAttribute(pa, i).applyMatrix4(M));
+    const cnt = ix ? ix.count : pa.count, I = k => ix ? ix.getX(k) : k;
+    for (let k = 0; k < cnt; k += 3) {
+      const a = vs[I(k)], b = vs[I(k + 1)], c = vs[I(k + 2)];
+      const det = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Math.abs(det) < 1e-9) continue;
+      const c0 = Math.max(0, Math.ceil((Math.min(a.x, b.x, c.x) + h) / r)), c1 = Math.min(n - 1, Math.floor((Math.max(a.x, b.x, c.x) + h) / r));
+      const r0 = Math.max(0, Math.ceil((Math.min(a.z, b.z, c.z) + h) / r)), r1 = Math.min(n - 1, Math.floor((Math.max(a.z, b.z, c.z) + h) / r));
+      for (let rr = r0; rr <= r1; rr++) for (let cc = c0; cc <= c1; cc++) {
+        const x = -h + cc * r, z = -h + rr * r;
+        const l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / det, l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / det, l3 = 1 - l1 - l2;
+        if (l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4) continue;
+        const y = l1 * a.y + l2 * b.y + l3 * c.y, i = rr * n + cc;
+        if (y > this.otop[i]) this.otop[i] = y; if (y < this.obot[i]) this.obot[i] = y;
+      }
+    }
+  }
+  oSamp(A, x, z, empty) {
+    const n = this.on, r = this.ores, h = this.half, fx = (x + h) / r, fz = (z + h) / r, c = Math.floor(fx), rr = Math.floor(fz);
+    if (c < 0 || rr < 0 || c >= n - 1 || rr >= n - 1) return empty;
+    const u = fx - c, v = fz - rr, i = rr * n + c, a = A[i], b = A[i + 1], d = A[i + n], e = A[i + n + 1];
+    if (a === empty || b === empty || d === empty || e === empty) return v < .5 ? (u < .5 ? a : b) : (u < .5 ? d : e);
+    return a * (1 - u) * (1 - v) + b * u * (1 - v) + d * (1 - u) * v + e * u * v;
+  }
+  objTop(x, z) { return this.oSamp(this.otop, x, z, -1e9); }
+  objBot(x, z) { return this.oSamp(this.obot, x, z, 1e9); }
+  solidAt(x, y, z) { const t = this.objTop(x, z); return t > -1e8 && y < t && y > this.objBot(x, z) - .05; }
   groundAt(x, z, y) {
     let g = this.floorAt(x, z);
+    { const t = this.objTop(x, z); if (t > g && t <= y + .5) g = t; }
     for (const c of this.near(x, z)) { const t = this.topAt(c, x, z); if (t > g && t <= y + .5) g = t; }
     return g;
   }
   walkable(x, z, y, step) {
     if (this.wAt(x, z) > .7) return false;
+    { const t = this.objTop(x, z); if (t > y + step && this.objBot(x, z) < y + .9) return false; }
     const f = this.groundAt(x, z, y);
     if (f > y + step) return false;
     if (this.cave && this.ceilAt(x, z) - Math.max(f, y) < .75) return false;
@@ -143,7 +178,8 @@ class World {
   }
   // déplace un corps (pieds en p) avec glissement le long des murs
   move(p, dx, dz, r, step) {
-    if (this.walkable(p.x + dx, p.z + dz, p.y, step)) { p.x += dx; p.z += dz; }
+    const l = Math.hypot(dx, dz), ax = l > 1e-5 ? dx / l * r * .8 : 0, az = l > 1e-5 ? dz / l * r * .8 : 0;
+    if (this.walkable(p.x + dx, p.z + dz, p.y, step) && this.walkable(p.x + dx + ax, p.z + dz + az, p.y, step + .1)) { p.x += dx; p.z += dz; }
     else if (this.walkable(p.x + dx, p.z, p.y, step)) p.x += dx;
     else if (this.walkable(p.x, p.z + dz, p.y, step)) p.z += dz;
     this.pushOut(p, r);
@@ -152,7 +188,7 @@ class World {
     for (const c of this.near(p.x, p.z)) {
       if (c.leaf || p.y + .6 < c.bot) continue;
       if (c.dome ? p.y >= this.topAt(c, p.x, p.z) - .3 : p.y >= c.top - .05) continue;
-      const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
+      const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), m = c.r + (c.grass ? Math.min(r, .42) : r);
       if (d < m && d > 1e-4) { p.x = c.x + dx / d * m; p.z = c.z + dz / d * m; }
     }
   }
@@ -162,6 +198,7 @@ class World {
       const t = i / st, x = a.x + dx * t, y = a.y + dy * t, z = a.z + dz * t;
       if (y < this.floorAt(x, z) - .05) return false;
       if (this.cave && y > this.ceilAt(x, z)) return false;
+      if (this.solidAt(x, y, z)) return false;
       for (const c of this.near(x, z)) if (!c.leaf && c.r > .9 && y < c.top && y > c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r * .8) return false;
     }
     return true;
@@ -170,7 +207,7 @@ class World {
   rayBlock(o, d, max) {
     for (let t = .3; t < max; t += .35) {
       const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
-      if (y < this.floorAt(x, z) || (this.cave && y > this.ceilAt(x, z)) || this.wAt(x, z) > .85) return t;
+      if (y < this.floorAt(x, z) || (this.cave && y > this.ceilAt(x, z)) || this.wAt(x, z) > .85 || this.solidAt(x, y, z)) return t;
       for (const c of this.near(x, z)) if (!c.leaf && y < c.top && y > c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r) return t;
     }
     return max;
@@ -183,7 +220,8 @@ class World {
     for (let r = 0; r < nn; r++) for (let c = 0; c < nn; c++) {
       const x = -h + c + .5, z = -h + r + .5;
       let ok = this.wAt(x, z) < .66;
-      if (ok) { const f = this.floorAt(x, z); for (const k of this.near(x, z)) if (!k.leaf && !k.cap && k.r > .45 && Math.hypot(x - k.x, z - k.z) < k.r + .3 && k.top - f > .7) { ok = false; break; } }
+      if (ok && this.objTop(x, z) - this.floorAt(x, z) > .8) ok = false;
+      if (ok) { const f = this.floorAt(x, z); for (const k of this.near(x, z)) if (!k.leaf && !k.cap && k.r > .15 && Math.hypot(x - k.x, z - k.z) < k.r + .3 && k.top - f > .7) { ok = false; break; } }
       this.walk[r * nn + c] = ok ? 1 : 0;
     }
   }
@@ -220,16 +258,15 @@ class World {
     this.mush = [];
     const L = this.L, h = this.half, g = this.group; this.highSpots = [];
     const clear = (x, z) => (L.clear || EMPTY).some(c => Math.hypot(x - c[0], z - c[1]) < c[2]);
-    this.addGrass(rng, L.grass || 2400, clear);
     // rochers
     const rockGeos = [0, 1, 2, 3].map(s => this.rockGeo(s * 7.3 + (L.seed || 1)));
     const rockCols = ['#8d8478', '#7a7268', '#9a8f80', '#6e675f'];
-    const rockMats = rockCols.map(c => new T.MeshStandardMaterial({ color: c, map: TEX.rock, bumpMap: TEX.rock, bumpScale: .08, roughness: .9 }));
+    const rockMats = rockCols.map(c => new T.MeshStandardMaterial({ color: c, map: TEX.rock, normalMap: TEX.rockN, normalScale: new T.Vector2(1.4, 1.4), roughness: .88 }));
     const placeRock = (x, z, s) => {
       const y = this.floorAt(x, z) - s * .2;
       const m = new T.Mesh(rockGeos[Math.floor(rng() * 4)], rockMats[Math.floor(rng() * 4)]);
       m.scale.setScalar(s); m.position.set(x, y, z); m.rotation.y = rng() * 6.28; m.castShadow = m.receiveShadow = true; g.add(m);
-      const c = this.addCol(x, z, s * .92, y + s * .6); c.dome = { y0: y, h: s * .58, R: s * .92 };
+      this.raster(m);
       if (s > 4) this.highSpots.push({ x, z });
     };
     for (const r of L.rocks || EMPTY) placeRock(r[0], r[1], r[2]);
@@ -237,6 +274,7 @@ class World {
       const x = (rng() * 2 - 1) * (h - 8), z = (rng() * 2 - 1) * (h - 8); if (clear(x, z)) continue;
       placeRock(x, z, 1.4 + Math.pow(rng(), 2.2) * 7);
     }
+    this.addGrass(rng, L.grass || 2400, clear);
     // gravillons (instanciés, sans collision)
     const pg = rockGeos[0], pm = new T.InstancedMesh(pg, rockMats[2], 500), mt = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), sv = new T.Vector3(), pv = new T.Vector3();
     for (let i = 0; i < 500; i++) {
@@ -298,43 +336,61 @@ class World {
   }
 
   addGrass(rng, count, clear) {
-    const segs = 6, pos = [], col = [], idx = [], c0 = new T.Color('#1d3a10'), c1 = new T.Color('#8cbd3c');
+    const segs = 8, pos = [], col = [], idx = [], c0 = new T.Color('#16300c'), c1 = new T.Color('#7fb437'), c2 = new T.Color('#c3d86a');
     for (let i = 0; i <= segs; i++) {
-      const t = i / segs, w = .5 * Math.pow(1 - t, .7) + .01, z = t * t * .35, cc = c0.clone().lerp(c1, t);
-      pos.push(-w, t, z, w, t, z); col.push(cc.r, cc.g, cc.b, cc.r, cc.g, cc.b);
+      const t = i / segs, w = .5 * Math.pow(1 - t, .65) + .008, z = t * t * .38, fold = .07 * (1 - t);
+      const cc = c0.clone().lerp(c1, Math.min(1, t * 1.4)); if (t > .7) cc.lerp(c2, (t - .7) * 1.2);
+      pos.push(-w, t, z, 0, t, z + fold, w, t, z);
+      for (let k = 0; k < 3; k++) col.push(cc.r * (k === 1 ? 1.1 : .92), cc.g * (k === 1 ? 1.1 : .92), cc.b);
     }
-    for (let i = 0; i < segs; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    for (let i = 0; i < segs; i++) { const a = i * 3; idx.push(a, a + 1, a + 3, a + 1, a + 4, a + 3, a + 1, a + 2, a + 4, a + 2, a + 5, a + 4); }
     const geo = new T.BufferGeometry();
     geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new T.Float32BufferAttribute(col, 3));
     geo.setIndex(idx); geo.computeVertexNormals();
-    const u = { value: 0 }; this.windU = u;
-    const mat = new T.MeshStandardMaterial({ vertexColors: true, side: T.DoubleSide, roughness: .6 });
+    const u = { value: 0 }, push = { value: new T.Vector3(0, -999, 0) }; this.windU = u; this.pushU = push;
+    const mat = new T.MeshStandardMaterial({ vertexColors: true, side: T.DoubleSide, roughness: .55, emissive: '#0d1a04', emissiveIntensity: 1 });
     mat.onBeforeCompile = sh => {
-      sh.uniforms.uTime = u;
-      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-        float k = position.y * position.y;
-        vec3 ip = vec3(instanceMatrix[3][0], 0., instanceMatrix[3][2]);
-        transformed.z += sin(uTime * 1.3 + ip.x * .13 + ip.z * .07) * k * .14;
-        transformed.x += cos(uTime * 1.1 + ip.z * .11) * k * .05;`);
+      sh.uniforms.uTime = u; sh.uniforms.uPush = push;
+      sh.vertexShader = 'uniform float uTime; uniform vec3 uPush;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+        vec4 mvPosition = vec4(transformed, 1.);
+        #ifdef USE_INSTANCING
+          mvPosition = instanceMatrix * mvPosition;
+          float hh = position.y * position.y, H = length(instanceMatrix[1].xyz);
+          vec3 ip = instanceMatrix[3].xyz;
+          float gust = max(0., sin(dot(ip.xz, vec2(.05, .032)) - uTime * 1.5)); gust *= gust;
+          float sway = sin(uTime * 2.2 + ip.x * .37 + ip.z * .29) * .1 + sin(uTime * 3.7 + ip.z * .6) * .04 + gust * .6 + .12;
+          mvPosition.xz += normalize(vec2(1., .55)) * sway * hh * min(H, 22.) * .3;
+          vec2 dp = mvPosition.xz - uPush.xz; float pr = smoothstep(2.6, .3, length(dp)) * step(abs(uPush.y - ip.y), 6.);
+          mvPosition.xz += normalize(dp + 1e-4) * pr * hh * 2.2; mvPosition.y -= pr * hh * 1.1;
+        #endif
+        mvPosition = modelViewMatrix * mvPosition;
+        gl_Position = projectionMatrix * mvPosition;`);
     };
-    const place = (n, inside, minH, maxH, collide) => {
+    const place = (n, mode, minH, maxH, collide, minW, maxW) => {
       const tint = new T.Color(), im = new T.InstancedMesh(geo, mat, n), m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), e = new T.Euler();
       let k = 0, tries = 0;
       while (k < n && tries < n * 10) {
         tries++;
         let x, z;
-        if (inside) { x = (rng() * 2 - 1) * this.half; z = (rng() * 2 - 1) * this.half; const dens = smoothstep(-.15, .35, NOISE.fbm(x / 28, z / 28, 3)); if (rng() > dens || clear(x, z)) continue; }
+        if (mode === 'in') { x = (rng() * 2 - 1) * this.half; z = (rng() * 2 - 1) * this.half; const dens = smoothstep(-.15, .35, NOISE.fbm(x / 28, z / 28, 3)); if (rng() > dens || clear(x, z)) continue; }
+        else if (mode === 'cover') { x = (rng() * 2 - 1) * this.half; z = (rng() * 2 - 1) * this.half; if (rng() > .25 + smoothstep(-.3, .3, NOISE.fbm(x / 20 + 4, z / 20, 3)) || this.objTop(x, z) > this.floorAt(x, z)) continue; }
         else { x = (rng() * 2 - 1) * (this.half + 70); z = (rng() * 2 - 1) * (this.half + 70); if (Math.max(Math.abs(x), Math.abs(z)) < this.half - 6) continue; }
-        const hh = minH + rng() * (maxH - minH), ww = .5 + rng() * .7;
-        e.set((rng() - .5) * .25, rng() * 6.28, (rng() - .5) * .25); q.setFromEuler(e); s.set(ww * 1.6, hh, hh * .5);
-        p.set(x, (inside ? this.floorAt(x, z) : this.floorAt(clamp(x, -this.half, this.half), clamp(z, -this.half, this.half))) - .2, z);
-        m.compose(p, q, s); im.setColorAt(k, tint.setRGB(.8 + rng() * .35, .85 + rng() * .3, .7 + rng() * .25)); im.setMatrixAt(k++, m);
-        if (collide) this.addCol(x, z, .22 * ww + .05, p.y + hh * .8);
+        const hh = minH + rng() * (maxH - minH), ww = minW + rng() * (maxW - minW);
+        e.set((rng() - .5) * .3, rng() * 6.28, (rng() - .5) * .3); q.setFromEuler(e); s.set(ww, hh, hh * .5);
+        p.set(x, (mode === 'out' ? this.floorAt(clamp(x, -this.half, this.half), clamp(z, -this.half, this.half)) : this.floorAt(x, z)) - .15, z);
+        m.compose(p, q, s); im.setColorAt(k, tint.setRGB(.78 + rng() * .4, .82 + rng() * .32, .66 + rng() * .3)); im.setMatrixAt(k++, m);
+        if (collide) this.addCol(x, z, .14 * ww + .06, p.y + hh * .8).grass = true;
       }
       im.count = k; return im;
     };
-    const near = place(count, true, 6, 20, true); near.castShadow = true; near.receiveShadow = true; this.group.add(near);
-    this.group.add(place(1400, false, 22, 50, false));
+    const near = place(count, 'in', 6, 20, true, .8, 1.9); near.castShadow = true; near.receiveShadow = true; this.group.add(near);
+    const cover = place(G.qual === 0 ? 3000 : 9000, 'cover', .9, 3.4, false, .3, .7); cover.receiveShadow = true; this.group.add(cover);
+    this.group.add(place(1400, 'out', 22, 50, false, .8, 1.9));
+  }
+  update(t) {
+    if (this.windU) this.windU.value = t;
+    if (this.pushU) this.pushU.value.copy(P.pos);
+    for (const f of this.flowers) { const g = Math.max(0, Math.sin(t * 1.5 - f.ph * .1)); f.lean.rotation.z = f.z0 + Math.sin(t * 1.1 + f.ph) * .025 + g * g * .05; f.lean.rotation.x = f.x0 + Math.sin(t * .9 + f.ph * 2) * .02; }
   }
 
   rockGeo(seed) {
@@ -383,13 +439,13 @@ class World {
     for (let i = 0; i < 16; i++) { const p = new T.Mesh(ANT.sph, pm), a = i / 16 * 6.283; p.scale.set(.42, .06, 1.5); p.position.set(Math.sin(a) * 2, 0, Math.cos(a) * 2); p.rotation.y = a; p.castShadow = true; head.add(p); }
     g.position.set(x, y - .2, z); this.group.add(g);
     this.addCol(x, z, .35, y + hgt);
+    this.flowers.push({ lean, z0: lean.rotation.z, x0: lean.rotation.x, ph: k * 9 });
   }
   twig(x, z, len, r, rot) {
     const g = new T.Mesh(new T.CylinderGeometry(r * .8, r, len, 10), new T.MeshStandardMaterial({ color: '#5a3e22', map: TEX.rock, roughness: .95 }));
     g.rotation.set(0, rot, Math.PI / 2, 'YXZ');
     const y = this.floorAt(x, z) + r * .7; g.position.set(x, y, z); g.castShadow = g.receiveShadow = true; this.group.add(g);
-    const dx = Math.cos(rot), dz = -Math.sin(rot);
-    for (let t = -len / 2; t <= len / 2; t += 1) this.addCol(x + dx * t, z + dz * t, r + .05, this.floorAt(x + dx * t, z + dz * t) + r * 1.6);
+    this.raster(g);
   }
   anthill(m) {
     const y = this.floorAt(m.x, m.z);
@@ -436,7 +492,7 @@ class World {
       m.position.set(x, c - len / 2 + .2, z); m.rotation.set((rng() - .5) * .3, 0, (rng() - .5) * .3); g.add(m);
     }
     // cailloux
-    const rgeo = this.rockGeo(3 + (L.seed || 1)), rmat = new T.MeshStandardMaterial({ color: '#6c5a48', map: TEX.rock, bumpMap: TEX.rock, bumpScale: .06, roughness: .9 });
+    const rgeo = this.rockGeo(3 + (L.seed || 1)), rmat = new T.MeshStandardMaterial({ color: '#6c5a48', map: TEX.rock, normalMap: TEX.rockN, roughness: .9 });
     for (let i = 0; i < (L.rockCount || 30); i++) {
       const s = L.shapes[Math.floor(rng() * L.shapes.length)];
       const [x, z] = s.b ? openSpot(lerp(s.a[0], s.b[0], rng()), lerp(s.a[1], s.b[1], rng()), s.r * .5) : openSpot(s.x, s.z, s.r * .85);

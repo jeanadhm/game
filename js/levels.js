@@ -9,12 +9,14 @@ const LEVELS = [
       'La Reine t\'a choisie, Sergent Obsidienne. Traverse la prairie, trouve la fourmilière rouge et entre.',
     ],
     start: { x: 0, z: -72, yaw: Math.PI },
+    cine: [[6, 3, -84, 0, 2, -62], [-14, 7, -48, 0, 3, -20], [-10, 12, -6, 0, 8, 40], [8, 16, 26, 0, 9, 58]], cineDur: 10,
+    cineText: ['La prairie du Ruisseau-Sec', 'Des éclaireuses rouges patrouillent entre les brins', 'Au nord, la fourmilière rouge'],
     mound: { x: 0, z: 60, r: 21, h: 9 }, exit: { x: 0, z: 60, r: 2.6 },
     clear: [[0, -72, 9], [0, 60, 6]],
     rocks: [[-15, 46, 5], [16, 48, 5.5], [-5, 26, 4], [22, 22, 6], [-26, -4, 7]],
     enemies: [
       ['scout', -15, -42], ['scout', 18, -36], ['scout', -24, -12], ['scout', 6, -16], ['scout', 26, 4], ['scout', -10, 14],
-      ['soldier', -9, 36], ['soldier', 11, 38], ['soldier', 2, 44],
+      ['soldier', -9, 36], ['soldier', 11, 38], ['mega', 2, 46],
       ['spitter', -15, 46], ['spitter', 16, 48], ['spitter', -5, 26],
       ['flyer', -10, 50], ['flyer', 12, 52], ['flyer', 2, 22],
     ],
@@ -26,7 +28,9 @@ const LEVELS = [
       { at: 1.5, say: ['reine', 'Sergent. Nos cocons sont entre leurs mandibules. Ramène-les-nous.'] },
       { at: 8, say: ['nyx', 'Ici Nyx, éclaireuse. La fourmilière rouge est au nord : suis la flèche en haut de l\'écran.'] },
       { at: 15, run: () => HUD.say(WHO.nyx, IN.touch ? 'Bouton Tir pour cracher l\'acide, Arme pour changer. Pousse le joystick à fond pour courir.' : 'Clic pour cracher l\'acide. 1, 2, 3 pour changer d\'arme. Maj pour courir, Espace pour sauter.') },
-      { on: 'alert', say: ['nyx', 'Elles t\'ont repérée ! Vise la tête : l\'acide la ronge deux fois plus vite.'] },
+      { on: 'alert', when: (L, G, e) => e && e.d.armored, run: (G, e) => { G.cut(e, 'Méga-soldate', 'blindée devant, frappe le sol : saute !'); HUD.say(WHO.nyx, 'Une Méga-soldate ! Son armure arrête tout de face. Contourne-la, vise le gastre, et saute quand elle frappe le sol.'); } },
+      { on: 'alert', when: (L, G, e) => !e || !e.d.armored, say: ['nyx', 'Elles t\'ont repérée ! Vise la tête : l\'acide la ronge deux fois plus vite.'] },
+      { at: 30, run: () => HUD.say(WHO.nyx, IN.touch ? 'Le bouton Bouclier déploie une coque de phéromones pendant quelques secondes.' : 'Clic droit (ou F) : bouclier de phéromones. Il dure 4 secondes, puis doit se recharger.') },
       { on: 'kill', say: ['nyx', 'Belle frappe. Les cadavres laissent parfois du miellat : ça soigne.'] },
       { when: () => P.pos.z > 12, cp: true, say: ['nyx', 'La butte rouge est droit devant. Des cracheuses guettent depuis les cailloux. Attention aux Ailées dans le ciel !'], run: G => G.checkpoint() },
       { at: 22, run: () => HUD.say(WHO.nyx, IN.touch ? 'Nouveau : le dard (arme 4). Garde le doigt sur Tir pour le charger.' : 'Nouveau : le dard, touche 4. Maintiens le clic pour le charger, relâche pour tirer. Il paralyse.') },
@@ -41,6 +45,8 @@ const LEVELS = [
       'Nos trois cocons sont cachés dans ces chambres. Retrouve-les tous, puis trouve le passage vers la chambre royale.',
     ],
     start: { x: 0, z: -54, yaw: Math.PI },
+    cine: [[0, 3, -58, 0, 2, -40], [-3, 2.5, -32, 0, 2, -8], [0, 3.5, -10, -20, 2, 10], [-26, 5, 22, -34, 2, 32]], cineDur: 9,
+    cineText: ['Les galeries de la colonie Rouge', 'Des chambres reliées par des tunnels étroits', 'Quelque part, nos trois cocons'],
     shapes: [
       { x: 0, z: -52, r: 8, h: 7 }, { x: 0, z: -8, r: 7, h: 7 }, { x: -38, z: -24, r: 10, h: 8 }, { x: 36, z: -20, r: 10, h: 8 },
       { x: -30, z: 30, r: 12, h: 10 }, { x: 30, z: 32, r: 9, h: 13 }, { x: 0, z: 52, r: 7, h: 7 },
@@ -69,8 +75,8 @@ const LEVELS = [
       ['soldier', 34, -16], ['spitter', 40, -24], ['scout', 30, -26],
       ['spitter', -28, 26], ['spitter', -36, 34], ['soldier', -24, 30],
       ['spitter', 30, 36], ['soldier', 26, 28], ['soldier', 34, 30],
-      ['soldier', -3, 52], ['soldier', 3, 54],
-      ['flyer', 30, 32], ['flyer', 26, 36],
+      ['mega', 0, 50], ['soldier', 4, 54],
+      ['flyer', 30, 32], ['flyer', 26, 36], ['mega', 38, -24],
     ],
     pickups: [['heal', 3, -45], ['seed', -4, -12], ['heal', -40, -18], ['seed', -34, -30], ['armor', 38, -14], ['heal', -44, 4], ['heal', 44, 6], ['seed', -30, 34], ['heal', 28, 26], ['armor', -14, 14],
       ['dart', 2, -50], ['dart', 34, 30], ['nectar', -44, -28], ['nectar', 42, -24], ['nectar', 34, 38], ['nectar', -38, 36]],
@@ -84,6 +90,7 @@ const LEVELS = [
     },
     events: [
       { at: 1, say: ['nyx', 'Tu es dans leurs galeries. Ta glande lumineuse éclaire un peu autour de toi.'] },
+      { on: 'alert', when: (L, G, e) => e && e.d.armored, run: (G, e) => G.cut(e, 'Méga-soldate', 'attaque-la par l\'arrière') },
       { at: 7, say: ['reine', 'Je sens l\'odeur de nos cocons. Ils sont trois, dans trois chambres différentes.'] },
       { on: 'cocoon', when: (L, G) => G.cocoons === 1, say: ['nyx', 'Un cocon ! Je le ramène à la colonie. Plus que deux.'], run: G => G.checkpoint() },
       { on: 'cocoon', when: (L, G) => G.cocoons === 2, run: G => { G.checkpoint(); HUD.say(WHO.nyx, 'Attention, elles arrivent par les tunnels !'); for (const [x, z] of [[-4, -30], [-2, -32], [-14, 14], [-12, 12]]) EN.alert(EN.spawn('scout', x, z)); } },
@@ -99,6 +106,8 @@ const LEVELS = [
       'Descends dans la chambre royale. Mets fin à cette guerre.',
     ],
     start: { x: 0, z: -40, yaw: Math.PI },
+    cine: [[0, 2.5, -44, 0, 2, -30], [2, 2.5, -24, 0, 2, -10], [0, 7, -12, 0, 6, 26], [-12, 10, 4, 0, 5, 28]], cineDur: 9,
+    cineText: ['La chambre royale', 'Le cœur de la colonie Rouge', 'Le Major Ignis veille sur sa reine'],
     shapes: [
       { x: 0, z: -40, r: 6, h: 6 }, { a: [0, -40], b: [3, -27], r: 2.9, h: 5 }, { a: [3, -27], b: [0, -14], r: 2.9, h: 5 },
       { x: 0, z: 8, r: 24, h: 16 },
@@ -125,10 +134,11 @@ const LEVELS = [
       { when: () => P.pos.z > -12, run: G => {
         G.checkpoint();
         G.boss = EN.spawn('boss', 0, 12); EN.alert(G.boss); HUD.boss(ETYPES.boss.name, 1); SFX.roar(); FX.shake = 1;
+        G.cut(G.boss, 'Major Ignis', 'championne de la Reine Rouge', 3.2);
         HUD.say(WHO.ignis, 'Une Noire, ici ? Tu vas nourrir notre couvain.'); HUD.say(WHO.nyx, 'Elle charge en ligne droite : écarte-toi au dernier moment et fais-la percuter un pilier !');
       } },
       { on: 'bossStun', say: ['nyx', 'Elle est sonnée ! Frappe maintenant, elle prend plus de dégâts.'] },
-      { on: 'boss60', run: () => { HUD.say(WHO.ignis, 'À moi, mes sœurs !'); for (const [t, x, z] of [['scout', -20, 0], ['scout', 20, 0], ['soldier', -18, 20], ['scout', 18, 20]]) EN.alert(EN.spawn(t, x, z)); } },
+      { on: 'boss60', run: () => { HUD.say(WHO.ignis, 'À moi, mes sœurs !'); for (const [t, x, z] of [['scout', -20, 0], ['scout', 20, 0], ['mega', -18, 20], ['scout', 18, 20]]) EN.alert(EN.spawn(t, x, z)); } },
       { on: 'boss30', run: () => { HUD.say(WHO.nyx, 'Elle faiblit ! Encore un effort, Sergent !'); for (const [t, x, z] of [['spitter', -20, 12], ['spitter', 20, 12], ['soldier', 0, -6], ['flyer', -10, 10], ['flyer', 10, 10]]) EN.alert(EN.spawn(t, x, z)); } },
       { on: 'kill', when: (L, G, e) => e && e.d.boss, run: G => { HUD.boss(null, null); HUD.say(WHO.rouge, 'Assez ! Mes soldates se retirent. Le Ruisseau-Sec sera votre frontière.'); setTimeout(() => G.complete(), 5200); } },
     ],

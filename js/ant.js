@@ -106,7 +106,9 @@ function buildAntProc(o) {
   };
 }
 
-// --- modèle Blender (models/ant.glb) : maillage organique + squelette + animations « walk » et « idle »
+// --- modèle Blender (models/ant.glb) : maillage organique + squelette
+// Les pattes sont animées par cinématique inverse : chaque pied reste planté au sol et fait un pas
+// quand le corps s'éloigne trop, en trépied alterné. Le corps suit le relief sous les pieds.
 const CHAR = new T.Color('#0a0705');
 ANT.load = done => {
   if (!T.GLTFLoader || !T.SkeletonUtils) { done(); return; }
@@ -115,60 +117,138 @@ ANT.load = done => {
   L.load('models/vm.glb', g => { ANT.vm = g; fin(); }, undefined, () => fin());
 };
 const UPV = new T.Vector3(0, 1, 0), XV = new T.Vector3(1, 0, 0), ZV = new T.Vector3(0, 0, 1);
-// o: { body, gaster, legs, head (taille relative), legLen, wings, gasterScale }
+const IKV = [0, 1, 2, 3, 4, 5, 6, 7].map(() => new T.Vector3()), IKQ = [0, 1, 2, 3].map(() => new T.Quaternion());
+const easeStep = t => t < .5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+
+// o: { body, gaster, legs, head, legLen, wings, gasterScale, noIK }
 function buildAnt(o) {
   if (!ANT.gltf) return buildAntProc(o);
   const g = ANT.gltf, model = T.SkeletonUtils.clone(g.scene);
-  const root = new T.Group(), body = new T.Group(); root.rotation.order = 'YXZ'; root.add(body); body.add(model);
+  const root = new T.Group(), body = new T.Group(); root.rotation.order = 'YXZ'; body.rotation.order = 'YXZ'; root.add(body); body.add(model);
   const mB = chitinMat(o.body), mG = chitinMat(o.gaster, .22), mL = chitinMat(o.legs || o.body, .4);
   const mE = new T.MeshPhysicalMaterial({ color: '#050505', roughness: .05, clearcoat: 1 });
   const mW = new T.MeshPhysicalMaterial({ color: '#dfe8ff', roughness: .1, transparent: true, opacity: .32, side: T.DoubleSide, clearcoat: 1, depthWrite: false });
   const map = { body: mB, gaster: mG, leg: mL, eye: mE, wing: mW };
   model.traverse(m => { if (m.isMesh) { m.material = map[m.material.name] || mB; m.castShadow = true; m.frustumCulled = false; if (m.material === mW) m.visible = !!o.wings; } });
   const B = {}; model.traverse(n => { if (n.isBone) B[n.name.replace(/[.]/g, '')] = n; });
-  model.updateMatrixWorld(true);
-  // axes de rotation exprimés dans le repère local de chaque os (haut, droite, avant du modèle au repos)
-  const rig = {}, q = new T.Quaternion();
-  for (const k in B) { const b = B[k]; b.getWorldQuaternion(q); q.invert(); rig[k] = { rest: b.quaternion.clone(), up: UPV.clone().applyQuaternion(q), x: XV.clone().applyQuaternion(q), z: ZV.clone().applyQuaternion(q) }; }
-  const setRot = (k, axis, ang) => { const r = rig[k]; if (!r) return; B[k].quaternion.copy(r.rest).multiply(q.setFromAxisAngle(r[axis], ang)); };
   const hs = o.head || 1;
   if (B.head) B.head.scale.setScalar(hs);
   if (B.gaster && o.gasterScale) B.gaster.scale.setScalar(o.gasterScale);
   if (o.legLen && o.legLen !== 1) for (let i = 0; i < 3; i++) for (const S of 'LR') if (B['femur' + i + S]) B['femur' + i + S].scale.setScalar(o.legLen);
+  model.updateMatrixWorld(true);
+  const rig = {}, q = new T.Quaternion();
+  for (const k in B) { const b = B[k]; b.getWorldQuaternion(q); q.invert(); rig[k] = { rest: b.quaternion.clone(), up: UPV.clone().applyQuaternion(q), x: XV.clone().applyQuaternion(q), z: ZV.clone().applyQuaternion(q) }; }
+  const setRot = (k, axis, ang) => { const r = rig[k]; if (!r) return; B[k].quaternion.copy(r.rest).multiply(q.setFromAxisAngle(r[axis], ang)); };
+  // pattes : position de repos de la cheville (repère du modèle), axes des os
+  const legs = [];
+  for (let i = 0; i < 3; i++) for (const [S, s] of [['L', -1], ['R', 1]]) {
+    const fe = B['femur' + i + S], ti = B['tibia' + i + S], ta = B['tarsus' + i + S]; if (!fe || !ti || !ta) continue;
+    const home = new T.Vector3(); ta.getWorldPosition(home); model.worldToLocal(home);
+    legs.push({ i, s, S, fe, ti, ta, home, drop: home.y, axF: ti.position.clone().normalize(), axT: ta.position.clone().normalize(), axA: UPV.clone(),
+      foot: new T.Vector3(), from: new T.Vector3(), to: new T.Vector3(), goal: new T.Vector3(), t: 1, dur: .15, grp: (i + (s < 0 ? 0 : 1)) % 2 });
+  }
   const mixer = new T.AnimationMixer(model), clip = n => g.animations.find(a => a.name === n);
-  const walk = mixer.clipAction(clip('walk')), idle = mixer.clipAction(clip('idle'));
-  walk.play(); idle.play(); walk.time = Math.random(); idle.time = Math.random() * 2;
-  let open = 0, openT = .1, lift = 0, curl = 0, dead = false, burn = 0, fade = 1, ft = Math.random() * 6;
-  const mats = [mB, mG, mL];
-  const base = mats.map(m => ({ c: m.color.clone(), r: m.roughness }));
-  return {
-    root, body, head: B.head, gaster: B.gaster, mats, legs: [],
+  const idle = mixer.clipAction(clip('idle')); idle.play(); idle.time = Math.random() * 2;
+  let open = 0, openT = .1, lift = 0, curl = 0, dead = false, fade = 1, ft = Math.random() * 6, ikOn = !o.noIK && !o.wings, init = false, bodyY = 0, pitchB = 0, rollB = 0;
+  const mats = [mB, mG, mL], base = mats.map(m => ({ c: m.color.clone(), r: m.roughness }));
+
+  // oriente un os pour que son axe vers l'enfant pointe dans la direction voulue (repère monde)
+  function aimBone(b, axisLocal, dir, rest) {
+    const P = IKQ[0], R = IKQ[1], A = IKQ[2];
+    b.parent.getWorldQuaternion(P); R.copy(P).multiply(rest);
+    const d0 = IKV[7].copy(axisLocal).applyQuaternion(R);
+    A.setFromUnitVectors(d0, dir).multiply(R);
+    b.quaternion.copy(P.invert().multiply(A));
+    b.updateMatrixWorld(true);
+  }
+  function solve(L, target, out, up) {
+    const hip = IKV[0], kn = IKV[1], an = IKV[2], dir = IKV[3], pole = IKV[4], knee = IKV[5];
+    L.fe.getWorldPosition(hip); L.ti.getWorldPosition(kn); L.ta.getWorldPosition(an);
+    const a = hip.distanceTo(kn), b = kn.distanceTo(an);
+    dir.copy(target).sub(hip); let d = dir.length(); d = clamp(d, Math.abs(a - b) + 1e-3, a + b - 1e-3); dir.normalize();
+    pole.copy(out).multiplyScalar(.55).add(up); pole.addScaledVector(dir, -pole.dot(dir)).normalize();
+    const ca = clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1), sa = Math.sqrt(1 - ca * ca);
+    knee.copy(hip).addScaledVector(dir, a * ca).addScaledVector(pole, a * sa);
+    aimBone(L.fe, L.axF, IKV[6].copy(knee).sub(hip).normalize(), rig['femur' + L.i + L.S].rest);
+    L.ti.getWorldPosition(kn);
+    aimBone(L.ti, L.axT, IKV[6].copy(target).sub(kn).normalize(), rig['tibia' + L.i + L.S].rest);
+    aimBone(L.ta, L.axA, IKV[6].copy(out).multiplyScalar(.5).sub(up).normalize(), rig['tarsus' + L.i + L.S].rest);
+  }
+  const api = {
+    root, body, head: B.head, gaster: B.gaster, mats, legs, ik: ikOn, onStep: null,
     hit: [
       { p: new T.Vector3(0, .44, .36 + .07 * hs), r: .2 * hs, head: true },
       { p: new T.Vector3(0, .38, .08), r: .19 },
-      { p: new T.Vector3(0, .34, -.52), r: .3 * (o.gasterScale || 1) },
+      { p: new T.Vector3(0, .34, -.52), r: .3 * (o.gasterScale || 1), rear: true },
     ],
     setOpen(v) { openT = v; },
     setLift(v) { lift = v; },
-    setCurl(v) { curl = v; if (v > 0 && !dead) { dead = true; walk.fadeOut(.3); idle.fadeOut(.3); } },
-    // carbonisation : la carapace noircit puis se ternit
-    setBurn(k) { burn = k; mats.forEach((m, i) => { m.color.copy(base[i].c).lerp(CHAR, k); m.roughness = lerp(base[i].r, .95, k); m.clearcoat = 1 - k; }); },
-    setFade(k) {
-      if (fade === k) return; fade = k;
-      for (const m of [...mats, mE]) { m.transparent = k < 1; m.opacity = k; m.depthWrite = k > .5; }
-    },
+    setCurl(v) { curl = v; if (v > 0 && !dead) { dead = true; idle.fadeOut(.3); } },
+    setBurn(k) { mats.forEach((m, i) => { m.color.copy(base[i].c).lerp(CHAR, k); m.roughness = lerp(base[i].r, .95, k); m.clearcoat = 1 - k; }); },
+    setFade(k) { if (fade === k) return; fade = k; for (const m of [...mats, mE]) { m.transparent = k < 1; m.opacity = k; m.depthWrite = k > .5; } },
     flap(t) { for (let k = 0; k < 2; k++) for (const [S, s] of [['L', -1], ['R', 1]]) setRot('wing' + k + S, 'z', s * (Math.sin(t * 46 + k * .9) * .7 + .15)); },
-    anim(dt, speed) {
-      if (!dead) {
-        const w = clamp(speed / 1.2, 0, 1);
-        walk.setEffectiveWeight(w); idle.setEffectiveWeight(1 - w); walk.setEffectiveTimeScale(clamp(speed * .9, .3, 4));
-      }
+    resetFeet() { init = false; },
+    // vel : vitesse au sol (monde). speed : vitesse relative à la taille.
+    anim(dt, speed, vel) {
       mixer.update(dt);
       open += (openT - open) * Math.min(1, dt * 18);
       setRot('mandL', 'up', -open); setRot('mandR', 'up', open);
       setRot('gaster', 'x', lift + Math.sin((ft += dt) * 1.5) * .03);
-      if (dead) for (let i = 0; i < 3; i++) for (const [S, s] of [['L', -1], ['R', 1]]) { setRot('femur' + i + S, 'z', s * curl * 1.3); setRot('tibia' + i + S, 'z', s * curl * .9); }
-      body.position.y = dead ? 0 : Math.abs(Math.sin(walk.time * Math.PI * 4)) * .01 * clamp(speed, 0, 1);
+      if (dead || !ikOn || !world || !world.floor) {
+        const c = dead ? curl : (o.wings ? .35 : 0);
+        for (let i = 0; i < 3; i++) for (const [S, s] of [['L', -1], ['R', 1]]) { setRot('femur' + i + S, 'z', s * c * 1.3); setRot('tibia' + i + S, 'z', s * c * .9); }
+        body.position.y = 0; body.rotation.set(0, 0, 0);
+        return;
+      }
+      const sc = root.scale.x, vx = vel ? vel.x : 0, vz = vel ? vel.z : 0, sp = Math.hypot(vx, vz);
+      // corps : hauteur et inclinaison d'après les pieds posés
+      if (init) {
+        let sy = 0, f = 0, bk = 0, l = 0, r = 0;
+        for (const L of legs) { sy += L.foot.y; if (L.i === 0) f += L.foot.y; if (L.i === 2) bk += L.foot.y; if (L.s < 0) l += L.foot.y; else r += L.foot.y; }
+        const avg = sy / legs.length - root.position.y;
+        bodyY += ((avg - legs[0].drop * sc) / sc * .7 - bodyY) * Math.min(1, dt * 10);
+        pitchB += (Math.atan2((f - bk) / 2, .7 * sc) - pitchB) * Math.min(1, dt * 8);
+        rollB += (Math.atan2((r - l) / 3, 1.1 * sc) - rollB) * Math.min(1, dt * 8);
+        let stepping = 0; for (const L of legs) if (L.t < 1) stepping += Math.sin(Math.PI * L.t);
+        body.position.y = bodyY + stepping * .006;
+        body.rotation.x = -pitchB; body.rotation.z = rollB * .8;
+      }
+      root.updateMatrixWorld(true);
+      const outV = IKV[4].set(0, 0, 0), up = new T.Vector3(0, 1, 0).applyQuaternion(root.quaternion);
+      const yQ = IKQ[3].setFromAxisAngle(UPV, root.rotation.y);
+      const rel = sp / sc, dur = clamp(.2 - rel * .03, .05, .2), lead = dur * 1.6 + .04, thr = .17 * sc + Math.min(.24 * sc, sp * .03), gy = root.position.y + 1.2 * sc;
+      for (const L of legs) {
+        L.goal.copy(L.home); L.goal.y = 0; model.localToWorld(L.goal);
+        L.goal.x += vx * lead; L.goal.z += vz * lead;
+        L.goal.y = world.groundAt(L.goal.x, L.goal.z, gy) + L.drop * sc * .55;
+        if (!init) { L.foot.copy(L.goal); L.t = 1; }
+      }
+      init = true;
+      let active = -1; for (const L of legs) if (L.t < 1) { active = L.grp; break; }
+      const err = L => Math.hypot(L.foot.x - L.goal.x, L.foot.z - L.goal.z);
+      const start = L => { L.from.copy(L.foot); L.to.copy(L.goal); L.t = 0; L.dur = dur; };
+      if (active < 0) {
+        let best = null, be = thr;
+        for (const L of legs) { const e = err(L); if (e > be) { be = e; best = L; } }
+        if (best) for (const L of legs) if (L.grp === best.grp && err(L) > thr * .35) start(L);
+      } else {
+        for (const L of legs) if (L.grp === active && L.t >= 1 && err(L) > thr) start(L);
+        // l'autre trépied peut partir dès que le premier a presque fini : allure rapide sans glissade
+        if (legs.every(L => L.grp !== active || L.t > .7)) for (const L of legs) if (L.grp !== active && L.t >= 1 && err(L) > thr * 1.2) start(L);
+      }
+      for (const L of legs) {
+        if (err(L) > 12 * sc) { L.foot.copy(L.goal); L.t = 1; }
+        else if (L.t >= 1 && err(L) > thr * 3) start(L);
+        if (L.t < 1) {
+          L.t = Math.min(1, L.t + dt / L.dur); const k = easeStep(L.t);
+          L.foot.lerpVectors(L.from, L.to, k); L.foot.y += Math.sin(Math.PI * L.t) * (.1 + Math.min(.12, sp * .01)) * sc;
+          if (L.t >= 1 && api.onStep) api.onStep(L);
+        }
+        const ov = IKV[5].set(L.s, 0, 0).applyQuaternion(yQ);
+        outV.copy(ov);
+        solve(L, L.foot, outV.clone(), up);
+      }
     },
   };
+  return api;
 }

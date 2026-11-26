@@ -97,19 +97,22 @@ const FX = { projs: [], shake: 0 };
       const f = world.floorAt(p.x, p.z), cl = world.ceilAt(p.x, p.z);
       if (p.y < f) { if (seed) { p.y = f + .01; v.y = Math.abs(v.y) * .35; v.x *= .6; v.z *= .6; } else hit = true; }
       if (p.y > cl) { if (seed) { p.y = cl - .01; v.y = -Math.abs(v.y) * .3; } else hit = true; }
+      if (world.solidAt(p.x, p.y, p.z)) { if (seed) { p.addScaledVector(v, -dt); v.y = Math.abs(v.y) * .4; v.x *= .6; v.z *= .6; } else hit = true; }
       if (world.wAt(p.x, p.z) > .85) { if (seed) { p.addScaledVector(v, -dt); v.x *= -.4; v.z *= -.4; } else hit = true; }
       for (const c of world.near(p.x, p.z)) if (!c.leaf && !c.cap && p.y < c.top && p.y > c.bot && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 < c.r * c.r) {
         if (seed) { const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz) || 1; p.x = c.x + dx / d * c.r * 1.01; p.z = c.z + dz / d * c.r * 1.01; const dot = (v.x * dx + v.z * dz) / d; v.x -= 1.5 * dot * dx / d; v.z -= 1.5 * dot * dz / d; }
         else hit = true;
         break;
       }
-      if (!hit && pr.owner === 'p' && !seed) {
+      if (!hit && (pr.owner === 'p' || pr.owner === 'a') && !seed) {
         const h = EN.hitTest(p, .1);
-        if (h) { G.stats.ahits++; EN.damage(h.e, pr.dmg, h.head, p); FX.hemo(p); hit = true; }
+        if (h) { if (pr.owner === 'p') G.stats.ahits++; EN.damage(h.e, pr.dmg, h.head, pr.owner === 'p' ? P.pos : p.clone().sub(pr.vel), h.rear); FX.hemo(p); hit = true; }
       }
       if (!hit && pr.owner === 'e') {
         chest.set(P.pos.x, P.pos.y + .35, P.pos.z);
-        if (p.distanceToSquared(chest) < .36) { P.damage(pr.dmg, p); hit = true; }
+        if (P.shieldT > 0 && p.distanceToSquared(chest) < 1.3) { P.block(pr.dmg, p); hit = true; }
+        else if (p.distanceToSquared(chest) < .36) { P.damage(pr.dmg, p); hit = true; }
+        else for (const a of ALLY.list) if (!a.down && p.distanceToSquared(chest.set(a.pos.x, a.pos.y + .35, a.pos.z)) < .4) { a.damage(pr.dmg, p); hit = true; break; }
       }
       pr.m.position.copy(p); if (seed) { pr.m.rotation.x += dt * 9; pr.m.rotation.y += dt * 7; }
       if (seed && (pr.life <= 0 || (EN.hitTest(p, .15)))) { FX.explode(p, 5.5, 130); hit = true; }
@@ -124,6 +127,12 @@ const FX = { projs: [], shake: 0 };
   FX.tracer = (a, b) => {
     const d = b.distanceTo(a), n = Math.min(140, Math.ceil(d / .45));
     for (let i = 0; i <= n; i++) { const t = i / n; FX.glow.spawn(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), 0, 0, 0, .18 + t * .12, .16, COL.spark); }
+  };
+
+  // onde de choc au sol (frappe de la Méga-soldate)
+  FX.shock = (p, R) => {
+    for (let i = 0; i < 48; i++) { const a = i / 48 * 6.283, s = R * 2.2; FX.dust.spawn(p.x + Math.cos(a) * .8, p.y + .2, p.z + Math.sin(a) * .8, Math.cos(a) * s, rand(.5, 1.5), Math.sin(a) * s, rand(.5, .8), rand(.6, 1.2), COL.dust, { grow: 1.5, drag: 2.5, a: .8 }); }
+    for (let i = 0; i < 20; i++) FX.glow.spawn(p.x + rand(-1, 1), p.y + .2, p.z + rand(-1, 1), rand(-4, 4), rand(2, 6), rand(-4, 4), rand(.3, .6), rand(.08, .15), COL.spark, { g: 14 });
   };
 
   // poussière ambiante autour de la caméra

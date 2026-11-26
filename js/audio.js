@@ -43,6 +43,11 @@ const SFX = (() => {
     chitter(d) { const v = vol(d); if (v <= 0) return; for (let i = 0; i < 5; i++) tone(2200 + Math.random() * 900, 1400, .03, .06 * v, 'square', i * .035); },
     pick() { tone(600, 1200, .12, .2, 'triangle'); tone(900, 1800, .14, .16, 'triangle', .09); },
     dart(k) { tone(300 + k * 500, 2400, .12, .25, 'sawtooth'); noise(.08, 4000, 2, .15); },
+    tap(s) { noise(.025, 3200 - s * 600, 5, .03 * Math.min(2, s)); },
+    clang() { tone(1400, 900, .12, .2, 'square'); tone(2300, 1600, .1, .12, 'triangle'); },
+    shield(on) { if (on) { tone(300, 900, .3, .2, 'sine'); noise(.3, 2000, 2, .08); } else tone(700, 200, .25, .15, 'sine'); },
+    block() { tone(900, 600, .08, .18, 'triangle'); noise(.08, 3000, 3, .12); },
+    land() { noise(.08, 600, 1, .15, 'lowpass'); },
     throwIt() { noise(.18, 700, 1, .15); },
     roar() { tone(140, 45, 1.3, .5, 'sawtooth'); noise(1.1, 300, .8, .4, 'lowpass'); },
     ambient(kind) {
