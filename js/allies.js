@@ -113,11 +113,13 @@ const ORDERS = { follow: 'Suivre', hold: 'Tenir la position', free: 'Libre' };
       }
       const k = Math.hypot(tx, tz);
       a.vel.x += ((k ? tx / k * spd : 0) - a.vel.x) * Math.min(1, dt * 6); a.vel.z += ((k ? tz / k * spd : 0) - a.vel.z) * Math.min(1, dt * 6);
-      const ox = a.pos.x - P.pos.x, oz = a.pos.z - P.pos.z; if (pd < .9 && pd > 1e-3) { a.pos.x += ox / pd * (.9 - pd); a.pos.z += oz / pd * (.9 - pd); }
+      const ox = a.pos.x - P.pos.x, oz = a.pos.z - P.pos.z; if (pd < .9 && pd > 1e-3) { a.vel.x += ox / pd * (.9 - pd) * 8; a.vel.z += oz / pd * (.9 - pd) * 8; }
       for (const b of ALLY.list) if (b !== a) { const qx = a.pos.x - b.pos.x, qz = a.pos.z - b.pos.z, q = Math.hypot(qx, qz); if (q < .9 && q > 1e-3) { a.pos.x += qx / q * (.9 - q) * .5; a.pos.z += qz / q * (.9 - q) * .5; } }
       const ox0 = a.pos.x, oz0 = a.pos.z;
       if (a.detour > 0) { a.detour -= dt; const c = Math.cos(a.detA), sn = Math.sin(a.detA), vx = a.vel.x * c - a.vel.z * sn; a.vel.z = a.vel.x * sn + a.vel.z * c; a.vel.x = vx; }
       world.move(a.pos, a.vel.x * dt, a.vel.z * dt, .45, .55);
+      if (!world.bodyFree(a.pos, a.yaw, 1)) { a.pos.x = ox0; a.pos.z = oz0; a.vel.multiplyScalar(.3); }
+      world.unstick(a.pos, a.yaw, 1);
       { const mv = Math.hypot(a.pos.x - ox0, a.pos.z - oz0); if (spd > 1 && mv < spd * dt * .25) a.stuckT = (a.stuckT || 0) + dt; else a.stuckT = 0; if (a.stuckT > .4) { a.stuckT = 0; a.detour = .8; a.detA = (Math.random() < .5 ? 1 : -1) * 1.4; } }
       a.pos.y += (world.groundAt(a.pos.x, a.pos.z, a.pos.y + .5) - a.pos.y) * Math.min(1, dt * 14);
       const sp = Math.hypot(a.vel.x, a.vel.z);

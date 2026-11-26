@@ -184,6 +184,40 @@ class World {
     for (let a = Math.floor((c.x - r) / k); a <= Math.floor((c.x + r) / k); a++)
       for (let b = Math.floor((c.z - r) / k); b <= Math.floor((c.z + r) / k); b++) { const key = a * 10007 + b; let l = this.climb.get(key); if (!l) this.climb.set(key, l = []); l.push(e); }
   }
+  // le corps d'une fourmi (centre, tête, gastre, flancs) est-il hors des murs et des objets ?
+  bodyFree(p, yaw, s) {
+    const fx = Math.sin(yaw), fz = Math.cos(yaw), L = .5 * s, W = .25 * s;
+    for (const [a, b, lim] of [[0, 0, .55], [L, 0, .68], [-L, 0, .68], [0, W, .68], [0, -W, .68]]) {
+      const x = p.x + fx * a + fz * b, z = p.z + fz * a - fx * b;
+      if (this.wAt(x, z) > lim) return false;
+      const t = this.objTop(x, z); if (t > p.y + .6 * s && this.objBot(x, z) < p.y + .5 * s) return false;
+      if (this.cave && this.ceilAt(x, z) - this.floorAt(x, z) < .5 * s + .3) return false;
+    }
+    return true;
+  }
+  // si une fourmi s'est retrouvée dans une paroi, on la fait ressortir vers l'espace libre
+  unstick(p, yaw, s) {
+    // on cherche le plus petit décalage qui libère le corps (murs, cailloux, objets)
+    for (let k = 0; k < 6 && !this.bodyFree(p, yaw, s); k++) {
+      let moved = false;
+      for (const r of [.15, .3, .5, .8]) {
+        for (let a = 0; a < 8 && !moved; a++) {
+          const x = p.x + Math.cos(a * .785) * r, z = p.z + Math.sin(a * .785) * r;
+          if (this.bodyFree({ x, y: p.y, z }, yaw, s)) { p.x = x; p.z = z; moved = true; }
+        }
+        if (moved) break;
+      }
+      if (!moved) { const o = this.openNear(p.x, p.z, s); p.x = o[0]; p.z = o[1]; break; }
+    }
+  }
+  openNear(x, z, s) {
+    if (this.bodyFree({ x, y: this.groundAt(x, z, 99), z }, 0, s) && this.bodyFree({ x, y: this.groundAt(x, z, 99), z }, Math.PI / 2, s)) return [x, z];
+    for (let r = .5; r < 12; r += .5) for (let a = 0; a < 6.28; a += .5) {
+      const nx = x + Math.cos(a) * r, nz = z + Math.sin(a) * r, y = this.groundAt(nx, nz, 99);
+      if (this.bodyFree({ x: nx, y, z: nz }, 0, s) && this.bodyFree({ x: nx, y, z: nz }, Math.PI / 2, s)) return [nx, nz];
+    }
+    return [x, z];
+  }
   solidPt(x, y, z) { return y < this.floorAt(x, z) || (this.cave && y > this.ceilAt(x, z)); }
   terrNormal(p) {
     const e = .25, f = this.floorAt(p.x, p.z);

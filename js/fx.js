@@ -93,6 +93,10 @@ const FX = { projs: [], shake: 0 };
       pr.life -= dt; v.y -= (seed ? 18 : pr.type === 'acid' ? 4 : 7) * dt;
       p.addScaledVector(v, dt);
       let hit = false;
+      if (!seed && (pr.owner === 'p' || pr.owner === 'a')) {
+        const h0 = EN.hitTest(p, .14);
+        if (h0) { if (pr.owner === 'p') G.stats.ahits++; EN.damage(h0.e, pr.dmg, h0.head, pr.owner === 'p' ? P.pos : p.clone().sub(pr.vel), h0.rear); FX.hemo(p); FX.splash(p, COL.acid, 5); FX.scene.remove(pr.m); FX.projs.splice(i, 1); continue; }
+      }
       if (!seed) FX.glow.spawn(p.x, p.y, p.z, 0, 0, 0, .22, pr.type === 'acid' ? .14 : .26, pr.type === 'acid' ? COL.acid : COL.eacid);
       const f = world.floorAt(p.x, p.z), cl = world.ceilAt(p.x, p.z);
       if (p.y < f) { if (seed) { p.y = f + .01; v.y = Math.abs(v.y) * .35; v.x *= .6; v.z *= .6; } else hit = true; }

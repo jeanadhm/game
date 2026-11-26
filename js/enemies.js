@@ -19,6 +19,7 @@ const EN = { list: [], flowT: 0 };
     const d = ETYPES[type], a = buildAnt({ body: d.body, gaster: d.gaster, head: d.head, legLen: d.legLen, wings: d.fly });
     a.root.scale.setScalar(d.scale); scene.add(a.root);
     if (d.armored) for (const m of a.mats) { m.clearcoat = 1; m.roughness = .18; m.metalness = .25; }
+    [x, z] = world.openNear(x, z, d.scale);
     const alt = d.fly ? rand(4, 6.5) : 0, y = world.groundAt(x, z, 99) + alt, hp = Math.round(d.hp * diff().hp);
     const e = Object.assign({
       type, d, ant: a, pos: new T.Vector3(x, y, z), vel: new T.Vector3(), vy: 0, alt, ft: Math.random() * 6, mode: 'orbit', mt: rand(2, 4), yaw: Math.random() * 6.28, hp, max: hp,
@@ -277,9 +278,13 @@ const EN = { list: [], flowT: 0 };
         const ox = e.pos.x - o.pos.x, oz = e.pos.z - o.pos.z, d = Math.hypot(ox, oz), m = (s + o.d.scale) * .55;
         if (d < m && d > 1e-3) { e.vel.x += ox / d * (m - d) * 4; e.vel.z += oz / d * (m - d) * 4; }
       }
-      for (const tg of EN.targets()) { const ox = e.pos.x - tg.pos.x, oz = e.pos.z - tg.pos.z, d = Math.hypot(ox, oz), m = .45 + .45 * s; if (d < m && d > 1e-3) { e.pos.x += ox / d * (m - d); e.pos.z += oz / d * (m - d); } }
+      // repousse des cibles : par la vitesse (jamais en téléportant dans un mur)
+      for (const tg of EN.targets()) { const ox = e.pos.x - tg.pos.x, oz = e.pos.z - tg.pos.z, d = Math.hypot(ox, oz), m = .45 + .45 * s; if (d < m && d > 1e-3 && Math.abs(tg.pos.y - e.pos.y) < 1.5 * s) { e.vel.x += ox / d * (m - d) * 8; e.vel.z += oz / d * (m - d) * 8; } }
       const ox = e.pos.x, oz = e.pos.z;
       world.move(e.pos, e.vel.x * dt, e.vel.z * dt, .5 * s, .55 * s);
+      // le corps entier doit rester dans l'espace libre : sinon on annule le pas et on ressort du mur
+      if (!world.bodyFree(e.pos, e.yaw, s)) { e.pos.x = ox; e.pos.z = oz; e.vel.multiplyScalar(.3); }
+      world.unstick(e.pos, e.yaw, s);
       const moved = Math.hypot(e.pos.x - ox, e.pos.z - oz);
       if (out.spd > 1 && !out.charge && !e.atk) {
         if (moved < out.spd * dt * .25) e.stuckT = (e.stuckT || 0) + dt; else e.stuckT = Math.max(0, (e.stuckT || 0) - dt * 2);

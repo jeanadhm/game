@@ -55,6 +55,7 @@ python tools/build_nature.py models
 ```
 
 ## Versions
+- **v4.1** : corps entier des fourmis gardé hors des murs et des objets, sorties de paroi, apparition toujours en zone libre, tirs qui touchent une fourmi collée à un mur
 - **v4.0** : escalade de toutes les surfaces, fourmilière modélisée, rochers en bord de carte ; corrections : arches qui bouchaient les tunnels (salle de la reine), ennemies bloquées par les plantes, traversée d'objets
 - **v3.1** : tout le décor modélisé dans Blender, collisions exactes sur ces modèles, ordres et rappel de l'escouade
 - **v3.0** : marche par IK sans glissement, bouclier, escouade, Méga-soldates, cinématiques, collisions exactes sur les cailloux, vent en rafales et herbe qui s'écarte, tapis d'herbe, profondeur de champ, normal maps

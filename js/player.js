@@ -215,7 +215,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
   function dart() {
     const k = P.charge; P.darts--; P.cd = .55; P.recoil = 2; G.stats.shots++;
     const o = cam.position.clone(), d = D.clone().normalize();
-    const wb = world.rayBlock(o, d, 90), h = EN.rayHit(o, d, wb);
+    const wb = world.rayBlock(o, d, 90), h = EN.rayHit(o, d, wb + .8);
     const end = o.clone().addScaledVector(d, h ? h.dist : wb);
     FX.tracer(V.copy(o).addScaledVector(d, .5).setY(o.y - .15), end);
     SFX.dart(k);
