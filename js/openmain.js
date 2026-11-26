@@ -120,7 +120,7 @@ const OPEN_L = { id: 'open', chapter: 'Monde ouvert', name: '', type: 'surface',
   }
   function drop(deposit) {
     const f = P.carry; if (!f) return;
-    if (OW.carryMesh) { VM.root.remove(OW.carryMesh); OW.carryMesh = null; }
+    if (OW.carryMesh) { if (OW.carryMesh.parent) OW.carryMesh.parent.remove(OW.carryMesh); OW.carryMesh = null; }
     P.carry = null;
     if (deposit) {
       const c = COL.player; c.food = Math.min(COL.foodCap(c), c.food + f.value); COL.stats.deposits += f.value;

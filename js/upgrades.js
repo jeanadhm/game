@@ -22,10 +22,10 @@ const SAVE = {
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('cn-save') || 'null');
-      if (s) { G.unlocked = s.unlocked || 1; G.diff = s.diff ?? 1; G.qual = s.qual ?? G.qual; G.squad = s.squad ?? 0; G.climb = s.climb || 'assist'; G.mouse = s.mouse || 'free'; if (s.up) { UP.nectar = s.up.nectar || 0; Object.assign(UP.lv, s.up.lv || {}); } }
+      if (s) { G.unlocked = s.unlocked || 1; G.diff = s.diff ?? 1; G.qual = s.qual ?? G.qual; G.squad = s.squad ?? 0; G.climb = s.climb || 'assist'; G.mouse = s.mouse || 'free'; G.view = s.view || 'tps'; if (s.up) { UP.nectar = s.up.nectar || 0; Object.assign(UP.lv, s.up.lv || {}); } }
     } catch (e) {}
   },
-  save() { try { localStorage.setItem('cn-save', JSON.stringify({ unlocked: G.unlocked, diff: G.diff, qual: G.qual, squad: G.squad, climb: G.climb, mouse: G.mouse, up: UP })); } catch (e) {} },
+  save() { try { localStorage.setItem('cn-save', JSON.stringify({ unlocked: G.unlocked, diff: G.diff, qual: G.qual, squad: G.squad, climb: G.climb, mouse: G.mouse, view: G.view, up: UP })); } catch (e) {} },
 };
 const diff = () => DIFFS[G.diff];
 function resetUpgrades() { UP.nectar = 0; for (const k in UP.lv) UP.lv[k] = 0; }

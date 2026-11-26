@@ -7,7 +7,7 @@ Jeu 3D de fourmis jouable dans le navigateur, avec deux modes :
 ## Jouer
 Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.github.io/game/). Three.js (r128) est chargé depuis un CDN.
 
-Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, maintenir C pour grimper aux murs et au plafond, V pour voler (Espace monte, C descend), G pour donner un ordre à l'escouade, R pour la rappeler, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
+Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, maintenir C pour grimper aux murs et au plafond, V pour voler (Espace monte, C descend), T pour changer de vue, G pour donner un ordre à l'escouade, R pour la rappeler, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
 
 ## Contenu (v4.0)
 - 3 chapitres : La Prairie (surface), Les Galeries (terriers, 3 cocons à retrouver), La Chambre royale (boss Major Ignis)
@@ -61,6 +61,7 @@ python tools/build_nature.py models
 ```
 
 ## Versions
+- **v5.2** : vue à la troisième personne par défaut (la fourmi est visible : marche, escalade, porte, vole), caméra qui évite le décor, tirs depuis la tête vers le viseur ; T pour passer à la première personne
 - **v5.1** : plus de traversée des surfaces (dômes, champignons, cailloux), on enjambe feuilles, bosses et brindilles, caméra droite et lissée, caméra abaissée sous les objets bas, souris libre par défaut (capture en option), vol (V)
 - **v5.0** : monde ouvert infini avec colonies, Reine, récolte, chambres, armées, guerres, raids, alliances, campagne
 - **v4.2** : escalade maîtrisée (maintenir C, mode Libre en option), caméra plus stable sur les murs, pistes de fourmis vers l'objectif, repère d'objectif, ombres de contact, nuages, vue épurée

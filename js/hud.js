@@ -13,6 +13,7 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
     if (/^Digit[1-4]$/.test(e.code)) IN.wsel = +e.code.slice(5);
     if (e.code === 'KeyF') IN.shieldPress = true;
     if (e.code === 'KeyV' && !e.repeat) IN.fly = true;
+    if (e.code === 'KeyT' && !e.repeat && G.state === 'play') { G.view = G.view === 'fps' ? 'tps' : 'fps'; SAVE.save(); HUD.notice(G.view === 'fps' ? 'Vue à la première personne' : 'Vue à la troisième personne', 1.4); }
     if (e.code === 'KeyE' && !e.repeat) { if (G.mode === 'open') OW.interact(); else IN.shieldPress = true; }
     if (e.code === 'Tab' && G.mode === 'open') { e.preventDefault(); UI.toggle(); }
     if (e.code === 'KeyM' && !e.repeat && G.mode === 'open') UI.map();

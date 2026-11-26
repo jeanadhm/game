@@ -130,7 +130,7 @@ function buildAnt(o) {
   const mE = new T.MeshPhysicalMaterial({ color: '#050505', roughness: .05, clearcoat: 1 });
   const mW = new T.MeshPhysicalMaterial({ color: '#dfe8ff', roughness: .1, transparent: true, opacity: .32, side: T.DoubleSide, clearcoat: 1, depthWrite: false });
   const map = { body: mB, gaster: mG, leg: mL, eye: mE, wing: mW };
-  model.traverse(m => { if (m.isMesh) { m.material = map[m.material.name] || mB; m.castShadow = true; m.frustumCulled = false; if (m.material === mW) m.visible = !!o.wings; } });
+  model.traverse(m => { if (m.isMesh) { m.material = map[m.material.name] || mB; m.castShadow = true; m.frustumCulled = false; if (m.material === mW) m.visible = !!(o.wings || o.wingsShown); } });
   const B = {}; model.traverse(n => { if (n.isBone) B[n.name.replace(/[.]/g, '')] = n; });
   const hs = o.head || 1;
   if (B.head) B.head.scale.setScalar(hs);
@@ -187,6 +187,8 @@ function buildAnt(o) {
     setCurl(v) { curl = v; if (v > 0 && !dead) { dead = true; idle.fadeOut(.3); } },
     setBurn(k) { mats.forEach((m, i) => { m.color.copy(base[i].c).lerp(CHAR, k); m.roughness = lerp(base[i].r, .95, k); m.clearcoat = 1 - k; }); },
     setFade(k) { if (fade === k) return; fade = k; for (const m of [...mats, mE]) { m.transparent = k < 1; m.opacity = k; m.depthWrite = k > .5; } },
+    setIK(v) { const n = v && !o.wings; if (n && !ikOn) init = false; ikOn = n; },
+    setWings(v) { model.traverse(m => { if (m.isMesh && m.material === mW) m.visible = v; }); },
     flap(t) { for (let k = 0; k < 2; k++) for (const [S, s] of [['L', -1], ['R', 1]]) setRot('wing' + k + S, 'z', s * (Math.sin(t * 46 + k * .9) * .7 + .15)); },
     resetFeet() { init = false; },
     // vel : vitesse au sol (monde). speed : vitesse relative à la taille.

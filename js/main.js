@@ -50,7 +50,7 @@ const lamp = new T.PointLight('#ffd7a0', 0, 24, 1.5); scene.add(lamp);
 let world = new World(scene);
 FX.init(scene); P.initVM(); POST.init();
 
-const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, mode: 'story', chapterWorld: null, squad: 0, climb: 'assist', mouse: 'free', cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
+const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, mode: 'story', chapterWorld: null, squad: 0, climb: 'assist', mouse: 'free', view: 'tps', cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
 const resetStats = () => { G.stats = { kills: 0, heads: 0, shots: 0, hits: 0, ahits: 0, time: 0, deaths: 0 }; };
 resetStats();
 
@@ -144,6 +144,7 @@ function chapterButtons() {
   for (const b of document.querySelectorAll('#squad button')) b.classList.toggle('on', +b.dataset.s === G.squad);
   for (const b of document.querySelectorAll('.climbSeg button')) b.classList.toggle('on', b.dataset.c === G.climb);
   for (const b of document.querySelectorAll('.mouseSeg button')) b.classList.toggle('on', b.dataset.m === G.mouse);
+  for (const b of document.querySelectorAll('.viewSeg button')) b.classList.toggle('on', b.dataset.v === G.view);
   document.body.classList.toggle('freemouse', G.mouse !== 'lock');
   $('bOpenCont').disabled = !OW.hasSave(); $('bRestart').hidden = false;
   $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';
@@ -222,6 +223,7 @@ $('bPlay').onclick = () => { SFX.init(); resetStats(); resetUpgrades(); SAVE.sav
 for (const b of document.querySelectorAll('#diff button')) b.onclick = () => { G.diff = +b.dataset.d; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.qual button')) b.onclick = () => { G.qual = +b.dataset.q; SAVE.save(); applyQuality(); };
 $('bStart').onclick = startCine;
+for (const b of document.querySelectorAll('.viewSeg button')) b.onclick = () => { G.view = b.dataset.v; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.mouseSeg button')) b.onclick = () => { G.mouse = b.dataset.m; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.climbSeg button')) b.onclick = () => { G.climb = b.dataset.c; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('#squad button')) b.onclick = () => { G.squad = +b.dataset.s; SAVE.save(); chapterButtons(); };
@@ -262,13 +264,14 @@ function frame(now) {
     EN.update(dt, true); FX.update(dt); FX.motes(dt, world.cave); if (G.L && G.L.tick) G.L.tick(dt, G);
   } else if (G.state === 'dead' || G.state === 'done') { FX.update(dt); EN.update(dt, true); }
   if (world.floor) world.update(G.time);
+  if (G.state === 'play' || G.state === 'pause' || G.state === 'colony' || G.state === 'map') P.syncModel(G.state === 'play' ? dt : 0); else if (P.model) P.model.root.visible = false;
   skyMat.uniforms.uTime.value = G.time;
   sun.target.position.set(Math.round(cam.position.x), 0, Math.round(cam.position.z));
   sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 100); sun.target.updateMatrixWorld();
   lamp.position.copy(cam.position); lamp.position.y += .3;
   sky.position.copy(cam.position);
   renderer.clear(); if (POST.on) POST.c.render(); else renderer.render(scene, cam);
-  if (G.state === 'play' || G.state === 'pause') { renderer.clearDepth(); renderer.render(VM.scene, VM.cam); }
+  if ((G.state === 'play' || G.state === 'pause') && G.view === 'fps') { renderer.clearDepth(); renderer.render(VM.scene, VM.cam); }
 }
 
 // démarrage

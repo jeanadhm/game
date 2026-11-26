@@ -130,16 +130,17 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     P.camQ.slerp(Qb, Math.min(1, dt * 12));
     E.set(P.pitch + (Math.random() - .5) * FX.shake * .03 + P.landT * .3, (Math.random() - .5) * FX.shake * .03, Math.sin(P.bobT * .5) * .01 * bob);
     cam.quaternion.copy(P.camQ).multiply(Qc.setFromEuler(E));
+    if (G.view !== 'fps') thirdPerson(dt);
     // armes
     P.cd -= dt; P.regen -= dt; P.switchT = Math.max(0, P.switchT - dt);
     if (P.regen <= 0) P.acid = Math.min(100, P.acid + 16 * (1 + .25 * UP.lv.acide) * dt);
-    cam.getWorldDirection(D);
+    aimDir(D);
     if (P.switchT <= 0 && P.shieldT <= 0) {
       if (P.weapon === 1 && IN.fire && P.cd <= 0) bite();
       else if (P.weapon === 2 && IN.fire && P.cd <= 0) {
         if (P.acid >= 1.5) {
           P.cd = .11; P.acid -= 1.6; P.regen = .9; P.recoil = 1; P.glowT = 1; G.stats.shots++;
-          V.copy(cam.position).addScaledVector(D, .45).y -= .14;
+          headPos(V).addScaledVector(D, .45); if (G.view === 'fps') V.y -= .14;
           const sp = .018; D.x += rand(-sp, sp); D.y += rand(-sp, sp); D.z += rand(-sp, sp); D.normalize();
           FX.fire('acid', V, D.clone().multiplyScalar(44), 'p', 12 * (1 + .2 * UP.lv.acide)); SFX.acid();
           EN.noise(P.pos, 14);
@@ -147,7 +148,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
       } else if (P.weapon === 3 && IN.firePress && P.cd <= 0) {
         if (P.seeds > 0) {
           P.cd = .8; P.seeds--; P.recoil = 1.5;
-          V.copy(cam.position).addScaledVector(D, .5).y -= .1;
+          headPos(V).addScaledVector(D, .5); if (G.view === 'fps') V.y -= .1;
           FX.fire('seed', V, D.clone().multiplyScalar(17).add(new T.Vector3(0, 4, 0)).add(new T.Vector3(P.vel.x * .5, 0, P.vel.z * .5)), 'p', 0); SFX.throwIt();
         } else HUD.notice('Plus de graines : fouille les cadavres et les réserves', 1.4);
       } else if (P.weapon === 4) {
@@ -166,6 +167,44 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
   const canClimb = n => n.y > .42 || G.climb === 'free' || IN.k.climb;
   // sur le sol, les pentes et les objets bosselés, la fourmi reste droite ; seuls les vrais murs la font pivoter
   const upFor = n => n.y > .42 ? WUP : n;
+  // --- vue à la troisième personne : la fourmi est visible, la caméra la suit sans traverser le décor
+  const T3 = new T.Vector3(), T4 = new T.Vector3(), HV = new T.Vector3(), QB = new T.Quaternion(), MB = new T.Matrix4(), SH = new T.Vector3();
+  function headPos(out) { return G.view === 'fps' ? out.copy(cam.position) : out.copy(P.pos).addScaledVector(P.up, .5).addScaledVector(P.fwd, .45); }
+  function aimDir(out) {
+    cam.getWorldDirection(out);
+    if (G.view === 'fps') return out;
+    // on vise le point sous le viseur, depuis la tête de la fourmi
+    const t = world.rayBlock(cam.position, out, 80), h = EN.rayHit(cam.position, out, t), p = T4.copy(cam.position).addScaledVector(out, h ? h.dist : Math.min(t, 80));
+    return out.copy(p.sub(headPos(HV))).normalize();
+  }
+  P.headPos = headPos;
+  function thirdPerson(dt) {
+    if (!P.model) {
+      P.model = buildAnt({ body: '#151311', gaster: '#0b0a09', head: 1.15, legLen: 1.05, wingsShown: false }); scene.add(P.model.root);
+      P.model.onStep = L => { if (L.i === 0) SFX.tap(1); };
+      const sm = VM.shield.material.clone(); sm.side = T.DoubleSide; P.bubble = new T.Mesh(new T.SphereGeometry(1, 32, 16), sm); P.bubble.visible = false; scene.add(P.bubble);
+    }
+    const head = T3.copy(P.pos).addScaledVector(P.up, .55);
+    const vd = HV.set(0, 0, -1).applyQuaternion(cam.quaternion), uc = SH.set(0, 1, 0).applyQuaternion(cam.quaternion);
+    const want = T4.copy(head).addScaledVector(vd, -3.3).addScaledVector(uc, .75), dir = want.sub(head), L = dir.length(); dir.normalize();
+    const h = world.raycast(head, dir, L + .3), dd = h ? Math.max(.5, h.d - .3) : L;
+    P.tpsD = P.tpsD ? lerp(P.tpsD, dd, Math.min(1, dt * (dd < P.tpsD ? 25 : 4))) : dd;
+    cam.position.copy(head).addScaledVector(dir, P.tpsD);
+  }
+  P.syncModel = dt => {
+    const show = G.view !== 'fps' && G.state !== 'title' && G.mode !== undefined;
+    if (!P.model) return; P.model.root.visible = show && !P.dead; P.bubble.visible = show && P.shieldT > 0;
+    if (!show) return;
+    const m = P.model, r = m.root;
+    MB.makeBasis(T4.crossVectors(P.up, P.fwd).normalize(), P.up, P.fwd); QB.setFromRotationMatrix(MB);
+    r.quaternion.slerp(QB, Math.min(1, dt * 14)); r.position.copy(P.pos);
+    m.setIK(!P.flying && P.up.y > .6 && P.onGround); m.setWings(!!P.flying);
+    if (P.flying) m.flap(G.time);
+    m.setOpen(P.biteT > 0 ? .7 : P.carry ? .4 : .12);
+    m.anim(dt, P.onGround ? P.vel.length() : 0, P.vel);
+    if (P.bubble.visible) { P.bubble.position.copy(P.pos).addScaledVector(P.up, .4); P.bubble.scale.setScalar(1.1); P.bubble.material.opacity = VM.shield.material.opacity; P.bubble.material.map.offset.x = G.time * .05; }
+    if (OW.carryMesh) { if (OW.carryMesh.parent !== r) { r.add(OW.carryMesh); OW.carryMesh.scale.multiplyScalar(5); OW.carryMesh.position.set(0, .4, .85); } }
+  };
   function setUp(n, k) {
     const nu = O.copy(P.up).lerp(n, k).normalize();
     if (nu.lengthSq() < .5) return;
@@ -259,7 +298,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
 
   function dart() {
     const k = P.charge; P.darts--; P.cd = .55; P.recoil = 2; G.stats.shots++;
-    const o = cam.position.clone(), d = D.clone().normalize();
+    const o = headPos(new T.Vector3()), d = D.clone().normalize();
     const wb = world.rayBlock(o, d, 90), h = EN.rayHit(o, d, wb + .8);
     const end = o.clone().addScaledVector(d, h ? h.dist : wb);
     FX.tracer(V.copy(o).addScaledVector(d, .5).setY(o.y - .15), end);
@@ -272,7 +311,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
   function bite() {
     P.cd = .55; P.biteT = .3; SFX.bite();
     let best = null, bd = 2.6;
-    V.copy(cam.position);
+    headPos(V);
     for (const e of EN.list) {
       if (e.dead) continue; const s = e.d.scale; e.ant.root.updateMatrixWorld();
       for (const h of e.ant.hit) {
