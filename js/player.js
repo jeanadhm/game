@@ -65,7 +65,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     P.camQ.setFromEuler(new T.Euler(0, s.yaw, 0, 'YXZ'));
     P.dead = false; P.cd = 0; P.biteT = 0;
   };
-  P.reset = () => { P.shieldT = 0; P.shieldCd = 0; P.maxHp = 100 + 10 * UP.lv.chitine; P.hp = P.maxHp; P.armor = 50 + 15 * UP.lv.chitine; P.acid = 100; P.seeds = 3; P.darts = 4; P.charge = 0; P.weapon = 2; };
+  P.reset = () => { P.wing = 100; P.flying = false; P.shieldT = 0; P.shieldCd = 0; P.maxHp = 100 + 10 * UP.lv.chitine; P.hp = P.maxHp; P.armor = 50 + 15 * UP.lv.chitine; P.acid = 100; P.seeds = 3; P.darts = 4; P.charge = 0; P.weapon = 2; };
 
   P.damage = (amt, from) => {
     if (P.dead || G.state !== 'play') return;
@@ -110,16 +110,21 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     if (Math.abs(P.fwd.y) < .97) P.yaw = Math.atan2(-P.fwd.x, -P.fwd.z);
     // pas : la tête plonge à chaque appui et se balance d'un côté à l'autre
     const hs = P.onGround ? P.vel.length() : 0;
+    if (P.flying) VM.root.position.y = Math.sin(G.time * 3) * .01;
     if (P.onGround && hs > .3) { P.bobT += hs * dt / .5 * Math.PI; const s = Math.floor(P.bobT / Math.PI); if (s !== P.stepS) { P.stepS = s; SFX.step(); if (run) SFX.tap(1.2); } }
     else P.bobT = Math.round(P.bobT / Math.PI) * Math.PI * .1 + P.bobT * .9;
     const bob = P.onGround ? Math.min(1, hs / 5) : 0;
     P.landT = Math.max(0, P.landT - dt * .9);
     const dip = -Math.abs(Math.sin(P.bobT)) * .045 * bob - P.landT, sway = Math.sin(P.bobT * .5) * .025 * bob;
     RT.crossVectors(P.fwd, P.up).normalize();
-    cam.position.copy(P.pos).addScaledVector(P.up, .66 + dip).addScaledVector(RT, sway);
+    { const hu = world.raycast(O.copy(P.pos).addScaledVector(P.up, .1), RD.copy(P.up), .8); P.eye = lerp(P.eye || .66, hu ? clamp(hu.d - .1, .2, .66) : .66, Math.min(1, dt * 10)); }
+    P.camLag = Math.max(0, (P.camLag || 0) - dt * 3);
+    const camT = O.copy(P.pos).addScaledVector(P.up, P.eye + dip - P.camLag).addScaledVector(RT, sway);
+    if (!P.camP || P.camP.distanceToSquared(camT) > 4) P.camP = camT.clone(); else P.camP.lerp(camT, Math.min(1, dt * 20));
+    cam.position.copy(P.camP);
     const fov = run && hs > 5 ? 82 : 74; if (Math.abs(cam.fov - fov) > .05) { cam.fov += (fov - cam.fov) * Math.min(1, dt * 6); cam.updateProjectionMatrix(); FX.setScale(renderer.domElement.height, cam.fov); }
     // orientation de la caméra : repère de la surface (droite, normale, avant), lissé, puis tangage
-    const kc = G.climb === 'free' ? 1 : P.up.y >= 0 ? .5 : .5 + .5 * Math.min(1, -P.up.y * 1.6);
+    const kc = P.up.y > .6 ? 0 : G.climb === 'free' ? 1 : P.up.y >= 0 ? .5 : .5 + .5 * Math.min(1, -P.up.y * 1.6);
     const cu = RD2.copy(WUP).lerp(P.up, kc).normalize(), cf = O.copy(P.fwd).addScaledVector(cu, -P.fwd.dot(cu)).normalize(), cr = RD.crossVectors(cf, cu).normalize();
     Mb.makeBasis(cr, cu, cf.negate()); Qb.setFromRotationMatrix(Mb);
     P.camQ.slerp(Qb, Math.min(1, dt * 12));
@@ -159,6 +164,8 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
   const WUP = new T.Vector3(0, 1, 0), RD = new T.Vector3(), RD2 = new T.Vector3(), O = new T.Vector3(), RT = new T.Vector3(), Mb = new T.Matrix4(), Qa = new T.Quaternion(), Qb = new T.Quaternion(), Qc = new T.Quaternion();
   // en mode assisté, les surfaces raides (murs, plafonds) ne se grimpent qu'en maintenant C
   const canClimb = n => n.y > .42 || G.climb === 'free' || IN.k.climb;
+  // sur le sol, les pentes et les objets bosselés, la fourmi reste droite ; seuls les vrais murs la font pivoter
+  const upFor = n => n.y > .42 ? WUP : n;
   function setUp(n, k) {
     const nu = O.copy(P.up).lerp(n, k).normalize();
     if (nu.lengthSq() < .5) return;
@@ -167,6 +174,27 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
   }
   function walk(dt, f, st, spd) {
     RT.crossVectors(P.fwd, P.up).normalize();
+    if (IN.fly) { IN.fly = false; if (P.flying) P.flying = false; else if (P.wing > 10) { P.flying = true; P.onGround = false; P.vel.y = Math.max(P.vel.y, 3); setUp(WUP, 1); SFX.wings(); } else HUD.notice('Ailes fatiguées : repose-toi au sol', 1.6); }
+    if (P.flying) {
+      P.wing = Math.max(0, P.wing - dt * 9); if (P.wing <= 0) { P.flying = false; HUD.notice('Plus d\'énergie : tu planes jusqu\'au sol', 2); }
+      setUp(WUP, Math.min(1, dt * 4)); RT.crossVectors(P.fwd, P.up).normalize();
+      const look = RD2.copy(P.fwd).applyAxisAngle(RT, P.pitch), v = (IN.k.jump ? 1 : 0) - (IN.k.climb ? 1 : 0);
+      const want = O.copy(look).multiplyScalar(f * 9).addScaledVector(RT, st * 7); want.y += v * 6;
+      P.vel.lerp(want, Math.min(1, dt * 3)); P.vel.y += Math.sin(G.time * 18) * .02;
+      const d = P.vel.length() * dt;
+      if (d > 1e-6) {
+        RD.copy(P.vel).normalize();
+        const h = world.raycast(O.copy(P.pos).addScaledVector(P.up, .3), RD, d + .35);
+        if (h) { if (h.n.y > .5 && P.vel.y < 1) { P.pos.copy(h.p); P.flying = false; P.onGround = true; setUp(WUP, 1); P.vel.multiplyScalar(.3); } else { const vn = P.vel.dot(h.n); P.vel.addScaledVector(h.n, -vn * 1.2); } }
+        else P.pos.addScaledVector(P.vel, dt);
+      }
+      IN.jump = false;
+      const lim = world.half - 3; P.pos.x = clamp(P.pos.x, -lim, lim); P.pos.z = clamp(P.pos.z, -lim, lim);
+      if (world.cave) P.pos.y = Math.min(P.pos.y, world.ceilAt(P.pos.x, P.pos.z) - .8);
+      if (P.pos.y < world.floorAt(P.pos.x, P.pos.z)) P.pos.y = world.floorAt(P.pos.x, P.pos.z);
+      return;
+    }
+    if (P.onGround) P.wing = Math.min(100, (P.wing ?? 100) + dt * 14);
     if (P.onGround) {
       const want = RD2.copy(P.fwd).multiplyScalar(f).addScaledVector(RT, st).multiplyScalar(spd);
       P.vel.lerp(want, Math.min(1, dt * 11));
@@ -182,10 +210,13 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
         // paroi devant (mur, caillou, bord de feuille) : on grimpe dessus au lieu de la traverser
         const h = world.raycast(O.copy(P.pos).addScaledVector(P.up, .22), RD, step + .36);
         if (h && h.n.dot(P.up) < .8) {
-          if (canClimb(h.n)) { P.pos.copy(h.p); setUp(h.n, 1); climbed = true; }
+          if (canClimb(h.n)) { P.pos.copy(h.p); setUp(upFor(h.n), 1); climbed = true; }
           else {
             // paroi trop raide sans grimper : on glisse le long, sans la traverser
-            const vn = P.vel.dot(h.n); if (vn < 0) P.vel.addScaledVector(h.n, -vn);
+            // bordure de feuille, caillou bosselé, brindille : on l'enjambe si le dessus est à portée
+            const q = RD2.copy(P.pos).addScaledVector(RD, .5), top = world.groundAt(q.x, q.z, P.pos.y + 1.9);
+            if (top > P.pos.y + .02 && top - P.pos.y < 1.9 && !world.solidPt(q.x, top + .6, q.z)) { P.pos.set(q.x, top, q.z); P.camLag = Math.min(.6, top - P.pos.y + .3); climbed = true; }
+            else { const vn = P.vel.dot(h.n); if (vn < 0) P.vel.addScaledVector(h.n, -vn); }
             if (!P.climbHint) { P.climbHint = true; HUD.notice(IN.touch ? 'Maintiens « Grimper » pour escalader les murs' : 'Maintiens C pour grimper aux murs et au plafond', 2.6); }
           }
         }
@@ -193,12 +224,12 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
       }
       // rester collée à la surface sous les pattes
       let g = world.raycast(O.copy(P.pos).addScaledVector(P.up, .45), RD2.copy(P.up).negate(), 1.05);
-      if (g) { P.pos.copy(g.p); setUp(g.n, climbed ? 1 : Math.min(1, dt * 12)); }
+      if (g) { P.pos.copy(g.p); setUp(upFor(g.n), climbed ? 1 : Math.min(1, dt * 8)); }
       else {
         // arête : on bascule de l'autre côté (comme une fourmi qui passe le bord d'une feuille)
         RD.copy(P.vel.lengthSq() > 1e-6 ? P.vel : P.fwd).normalize().negate();
         g = world.raycast(O.copy(P.pos).addScaledVector(P.up, -.32), RD, .9);
-        if (g && g.n.dot(P.up) < .95 && canClimb(g.n)) { P.pos.copy(g.p); setUp(g.n, 1); }
+        if (g && g.n.dot(P.up) < .95 && canClimb(g.n)) { P.pos.copy(g.p); setUp(upFor(g.n), 1); }
         else P.onGround = false;
       }
       // sur un mur sans maintenir l'escalade : on se détache
@@ -211,7 +242,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
       const d = P.vel.length() * dt;
       RD.copy(P.vel).normalize();
       const h = d > 1e-6 ? world.raycast(O.copy(P.pos).addScaledVector(P.up, .3), RD, d + .32) : null;
-      if (h && canClimb(h.n)) { P.pos.copy(h.p); setUp(h.n, 1); P.onGround = true; P.vel.addScaledVector(P.up, -P.vel.dot(P.up)).multiplyScalar(.5); }
+      if (h && canClimb(h.n)) { P.pos.copy(h.p); setUp(upFor(h.n), 1); P.onGround = true; P.vel.addScaledVector(P.up, -P.vel.dot(P.up)).multiplyScalar(.5); }
       else if (h) { P.pos.copy(h.p).addScaledVector(h.n, .06); const vn = P.vel.dot(h.n); if (vn < 0) P.vel.addScaledVector(h.n, -vn * 1.2); }
       else { P.pos.addScaledVector(P.vel, dt); setUp(WUP, Math.min(1, dt * 3)); }
     }

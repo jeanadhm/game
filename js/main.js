@@ -50,7 +50,7 @@ const lamp = new T.PointLight('#ffd7a0', 0, 24, 1.5); scene.add(lamp);
 let world = new World(scene);
 FX.init(scene); P.initVM(); POST.init();
 
-const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, mode: 'story', chapterWorld: null, squad: 0, climb: 'assist', cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
+const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, mode: 'story', chapterWorld: null, squad: 0, climb: 'assist', mouse: 'free', cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
 const resetStats = () => { G.stats = { kills: 0, heads: 0, shots: 0, hits: 0, ahits: 0, time: 0, deaths: 0 }; };
 resetStats();
 
@@ -143,6 +143,8 @@ function chapterButtons() {
   for (const b of document.querySelectorAll('#diff button')) b.classList.toggle('on', +b.dataset.d === G.diff);
   for (const b of document.querySelectorAll('#squad button')) b.classList.toggle('on', +b.dataset.s === G.squad);
   for (const b of document.querySelectorAll('.climbSeg button')) b.classList.toggle('on', b.dataset.c === G.climb);
+  for (const b of document.querySelectorAll('.mouseSeg button')) b.classList.toggle('on', b.dataset.m === G.mouse);
+  document.body.classList.toggle('freemouse', G.mouse !== 'lock');
   $('bOpenCont').disabled = !OW.hasSave(); $('bRestart').hidden = false;
   $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';
 }
@@ -189,7 +191,7 @@ $('c').addEventListener('mousedown', () => { if (G.state === 'cine') endCine(); 
 $('cine').addEventListener('pointerdown', () => { if (G.state === 'cine') endCine(); });
 function play() {
   SFX.init(); G.state = 'play'; show(null); HUD.show(true); if (!IN.locked) HUD.lock();
-  if (IN.noLock && !IN.touch) HUD.notice('Souris libre : Échap ou P pour la pause', 3);
+  if (G.mouse !== 'lock' && !IN.touch && !G.mouseHint) { G.mouseHint = true; HUD.notice('Souris libre : bouge la souris pour regarder, pousse-la au bord pour tourner · Échap : pause', 3.5); }
 }
 G.pause = () => { if (G.state !== 'play') return; $('bRestart').hidden = G.mode === 'open'; G.state = 'pause'; IN.fire = false; IN.k = {}; show('pause'); HUD.show(false); if (document.pointerLockElement) document.exitPointerLock(); };
 G.die = () => {
@@ -220,6 +222,7 @@ $('bPlay').onclick = () => { SFX.init(); resetStats(); resetUpgrades(); SAVE.sav
 for (const b of document.querySelectorAll('#diff button')) b.onclick = () => { G.diff = +b.dataset.d; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.qual button')) b.onclick = () => { G.qual = +b.dataset.q; SAVE.save(); applyQuality(); };
 $('bStart').onclick = startCine;
+for (const b of document.querySelectorAll('.mouseSeg button')) b.onclick = () => { G.mouse = b.dataset.m; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.climbSeg button')) b.onclick = () => { G.climb = b.dataset.c; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('#squad button')) b.onclick = () => { G.squad = +b.dataset.s; SAVE.save(); chapterButtons(); };
 $('bResume').onclick = () => { G.state = 'play'; show(null); HUD.show(true); HUD.lock(); };

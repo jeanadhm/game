@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: false, jump: false, wsel: 0, wheel: 0, locked: false, noLock: false, touch: false, mx: 0, my: 0, mrun: false };
 
 (() => {
-  const KEYMAP = { KeyC: 'climb', KeyW: 'f', KeyZ: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', KeyQ: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', ShiftLeft: 'run', ShiftRight: 'run' };
+  const KEYMAP = { Space: 'jump', KeyC: 'climb', KeyW: 'f', KeyZ: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', KeyQ: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', ShiftLeft: 'run', ShiftRight: 'run' };
   addEventListener('keydown', e => {
     const k = KEYMAP[e.code];
     if (k) IN.k[k] = true;
@@ -12,6 +12,7 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
     if (e.code === 'Space' && !e.repeat) IN.jump = true;
     if (/^Digit[1-4]$/.test(e.code)) IN.wsel = +e.code.slice(5);
     if (e.code === 'KeyF') IN.shieldPress = true;
+    if (e.code === 'KeyV' && !e.repeat) IN.fly = true;
     if (e.code === 'KeyE' && !e.repeat) { if (G.mode === 'open') OW.interact(); else IN.shieldPress = true; }
     if (e.code === 'Tab' && G.mode === 'open') { e.preventDefault(); UI.toggle(); }
     if (e.code === 'KeyM' && !e.repeat && G.mode === 'open') UI.map();
@@ -25,17 +26,18 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
   const cv = $('c');
   cv.addEventListener('mousedown', e => {
     if (G.state !== 'play' || IN.touch) return;
-    if (!IN.locked && !IN.noLock) { HUD.lock(); return; }
+    if (G.mouse === 'lock' && !IN.locked && !IN.noLock) { HUD.lock(); return; }
     if (e.button === 0) { IN.fire = true; IN.firePress = true; }
     if (e.button === 2) IN.shieldPress = true;
   });
   addEventListener('mouseup', e => { if (e.button === 0) IN.fire = false; });
-  addEventListener('mousemove', e => { if (G.state === 'play' && !IN.touch && (IN.locked || IN.noLock)) { IN.dx += e.movementX || 0; IN.dy += e.movementY || 0; } });
+  addEventListener('mousemove', e => { IN.cx = e.clientX; IN.cy = e.clientY; if (G.state === 'play' && !IN.touch && (IN.locked || IN.noLock || G.mouse !== 'lock')) { IN.dx += e.movementX || 0; IN.dy += e.movementY || 0; } });
+  document.addEventListener('mouseleave', () => { IN.cx = null; });
   cv.addEventListener('wheel', e => { if (G.state === 'play') IN.wheel += e.deltaY > 0 ? 1 : -1; }, { passive: true });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   document.addEventListener('pointerlockchange', () => {
     IN.locked = document.pointerLockElement === cv;
-    if (!IN.locked && G.state === 'play' && !IN.noLock) G.pause();
+    if (!IN.locked && G.state === 'play' && !IN.noLock && G.mouse === 'lock') G.pause();
   });
   document.addEventListener('pointerlockerror', () => { IN.fails = (IN.fails || 0) + 1; if (IN.fails >= 2) { IN.noLock = true; HUD.notice('Souris libre : Échap ou P pour la pause', 3); } else HUD.notice('Clique dans le jeu pour capturer la souris', 2.5); });
 
@@ -58,6 +60,7 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
   hold('tJump', () => { IN.jump = true; });
   hold('tWeap', () => { IN.wheel += 1; });
   hold('tShield', () => { IN.shieldPress = true; });
+  hold('tFly', () => { IN.fly = true; });
   $('tClimb').addEventListener('pointerdown', e => { e.stopPropagation(); IN.k.climb = !IN.k.climb; $('tClimb').classList.toggle('on', !!IN.k.climb); });
   hold('tOrder', () => ALLY.command());
   hold('tAct', () => OW.interact());
@@ -72,7 +75,7 @@ const HUD = (() => {
   const slots = [...document.querySelectorAll('#slots span')];
   const H = {
     show(v) { $('hud').hidden = !v; $('touch').hidden = !(v && IN.touch); },
-    lock() { if (IN.touch || IN.noLock) return; try { const r = $('c').requestPointerLock(); if (r && r.catch) r.catch(() => { IN.noLock = true; }); } catch (e) { IN.noLock = true; } },
+    lock() { if (IN.touch || IN.noLock || G.mouse !== 'lock') return; try { const r = $('c').requestPointerLock(); if (r && r.catch) r.catch(() => { IN.noLock = true; }); } catch (e) { IN.noLock = true; } },
     level(chap, name) { $('lvlName').textContent = chap + ' · ' + name; },
     objective(t) { const o = $('objText'); if (o.textContent !== t) { o.textContent = t; $('obj').classList.remove('flash'); void o.offsetWidth; $('obj').classList.add('flash'); } },
     say(who, text, dur) { q.push({ who, text, dur: dur || 2.2 + text.length * .045 }); },
@@ -106,6 +109,8 @@ const HUD = (() => {
       const am = P.weapon === 1 ? '∞' : P.weapon === 2 ? Math.floor(P.acid) + '%' : P.weapon === 3 ? P.seeds + ' / 6' : P.darts + ' / 8';
       if (am !== lastAmmo) { lastAmmo = am; $('wAmmo').textContent = am; }
       $('acidBar').style.width = P.acid + '%';
+      $('wingBar').style.width = (P.wing ?? 100) + '%'; $('wingBar').className = P.flying ? 'on' : '';
+      if (G.mouse !== 'lock' && !IN.touch && IN.cx != null && G.state === 'play') { const m = 60, w = innerWidth; if (IN.cx < m) IN.dx -= (m - IN.cx) / m * 900 * dt; else if (IN.cx > w - m) IN.dx += (IN.cx - (w - m)) / m * 900 * dt; }
       const sb = $('shieldBar'); sb.style.width = (P.shieldT > 0 ? P.shieldT / 4 * 100 : 100 - P.shieldCd / 10 * 100) + '%'; sb.className = P.shieldT > 0 ? 'on' : P.shieldCd > 0 ? 'cd' : '';
       if (ALLY.list.length && Math.random() < dt * 4) HUD.allies();
       // boussole vers l'objectif

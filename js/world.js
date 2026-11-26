@@ -273,7 +273,9 @@ class World {
         for (const e of this.climb.get(a * 10007 + b) || EMPTY) {
           if (seen.has(e)) continue; seen.add(e);
           if (e.c.distanceTo(o) > e.r + lim + .5) continue;
+          const mt = e.mesh.material, sd = mt.side; mt.side = T.DoubleSide;
           const h = rc.intersectObject(e.mesh, false)[0];
+          mt.side = sd;
           if (h && h.distance < (best ? best.d : lim)) {
             const n = h.face.normal.clone().transformDirection(e.mesh.matrixWorld);
             if (n.dot(d) > 0) n.negate();
