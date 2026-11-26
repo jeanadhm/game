@@ -7,12 +7,14 @@ Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.gi
 
 Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
 
-## Contenu (v2.0)
+## Contenu (v2.1)
 - 3 chapitres : La Prairie (surface), Les Galeries (terriers, 3 cocons à retrouver), La Chambre royale (boss Major Ignis)
 - 4 armes : mandibules, acide formique, graine explosive, dard chargé (paralyse)
 - 5 ennemis : éclaireuse, soldate, cracheuse, Ailée (volante), boss
 - Évolutions entre les chapitres, achetées avec le nectar
 - 3 difficultés, points de sauvegarde, réglage graphique (halo lumineux, ombres)
+- Fourmis modélisées dans Blender (maillage organique, squelette, animations de marche et d'attente), carbonisation à la mort
+- Feuilles, cailloux et chapeaux de champignons praticables (rampes, sauts, nectar en hauteur)
 - Fourmis anatomiques animées, ombres en temps réel, sons synthétisés, dialogues et récit
 
 ## Structure
@@ -31,8 +33,19 @@ js/upgrades.js    nectar, évolutions, difficulté, qualité, sauvegarde
 js/post.js        post-traitement (halo lumineux, vignette)
 js/levels.js      chapitres, histoire, scripts
 js/main.js        rendu, états du jeu, boucle principale
+models/ant.glb    fourmi (maillage + squelette + animations), générée par tools/build_ant.py
+models/vm.glb     mandibles de la vue à la première personne
+tools/build_ant.py  script Blender qui modélise la fourmi
+```
+
+## Regénérer les modèles 3D
+Les modèles sont créés par script avec Blender (gratuit), sans modélisation manuelle :
+```
+pip install bpy
+python tools/build_ant.py models
 ```
 
 ## Versions
+- **v2.1** : fourmis modélisées dans Blender avec squelette et animations, carbonisation à la mort, plateformes (feuilles, cailloux, champignons)
 - **v2.0** : dard chargé, Ailées volantes, évolutions au nectar, difficulté, points de sauvegarde, halo lumineux et réglage graphique, barre de vie de la cible
 - **v0.1** : prototype (3 chapitres, 3 armes, 4 ennemis, boss)

@@ -22,7 +22,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     for (const s of [-1, 1]) {
       // mandibles courbes, vues depuis la tête
       const md = new T.Vector3(-s * .55, .08, -1).normalize();
-      const pv = new T.Group(); pv.position.set(s * .17, -.27, -.4); VM.root.add(pv);
+      const pv = new T.Group(); pv.position.set(s * .16, -.235, -.42); VM.root.add(pv);
       const m1 = new T.Mesh(limbGeo(.26, .034), mat); aim(m1, md); pv.add(m1);
       const tip = new T.Group(); tip.position.copy(md).multiplyScalar(.24); pv.add(tip);
       const m2 = new T.Mesh(limbGeo(.12, .026), mat); aim(m2, new T.Vector3(-s, .02, -.45)); tip.add(m2);
@@ -40,6 +40,15 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     VM.seed = new T.Mesh(ANT.sph, new T.MeshStandardMaterial({ color: '#7a4f24', roughness: .5 })); VM.seed.scale.set(.08, .06, .06); VM.seed.position.set(0, -.235, -.6); VM.root.add(VM.seed);
   };
 
+  // remplace les mandibles de la vue par celles modélisées dans Blender (models/vm.glb)
+  P.useVMModel = () => {
+    const mat = new T.MeshPhysicalMaterial({ color: '#1b120b', roughness: .35, clearcoat: .8, clearcoatRoughness: .25, envMapIntensity: .4 });
+    VM.mand.forEach((pv, k) => {
+      const src = ANT.vm.scene.getObjectByName(k === 0 ? 'vm_mand_R' : 'vm_mand_L'); if (!src) return;
+      pv.clear(); const m = src.clone(); m.material = mat; m.position.set(0, 0, 0); m.rotation.set(-.1, Math.PI, 0); m.scale.setScalar(1.35); pv.add(m);
+    });
+    VM.mBase = .12;
+  };
   P.spawn = L => {
     const s = L.start; P.pos.set(s.x, world.groundAt(s.x, s.z, 99), s.z); P.vel.set(0, 0, 0); P.yaw = s.yaw; P.pitch = 0;
     P.dead = false; P.cd = 0; P.biteT = 0;
@@ -73,7 +82,7 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     const tx = (-sy * f + cy * st) * spd, tz = (-cy * f - sy * st) * spd;
     const acc = P.onGround ? 11 : 2.5;
     P.vel.x += (tx - P.vel.x) * Math.min(1, dt * acc); P.vel.z += (tz - P.vel.z) * Math.min(1, dt * acc);
-    if (IN.jump) { if (P.onGround) { P.vel.y = 6.2 * (1 + .05 * UP.lv.pattes); P.onGround = false; SFX.step(); } IN.jump = false; }
+    if (IN.jump) { if (P.onGround) { P.vel.y = 6.9 * (1 + .05 * UP.lv.pattes); P.onGround = false; SFX.step(); } IN.jump = false; }
     P.vel.y -= 16 * dt;
     world.move(P.pos, P.vel.x * dt, P.vel.z * dt, .42, .55);
     const ground = world.groundAt(P.pos.x, P.pos.z, P.pos.y);
@@ -154,8 +163,9 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     if (P.biteT > 0) { P.biteT -= dt; const k = 1 - P.biteT / .3; o = k < .35 ? .08 + k / .35 * .35 : .43 - (k - .35) / .65 * .7; }
     else if (P.weapon === 3) o = -.02;
     else if (P.weapon === 2) o = .14 + P.glowT * .05;
-    VM.mand[0].rotation.y = lerp(VM.mand[0].rotation.y, o, Math.min(1, dt * 30));
-    VM.mand[1].rotation.y = lerp(VM.mand[1].rotation.y, -o, Math.min(1, dt * 30));
+    const mb = VM.mBase || 0;
+    VM.mand[0].rotation.y = lerp(VM.mand[0].rotation.y, -mb + o, Math.min(1, dt * 30));
+    VM.mand[1].rotation.y = lerp(VM.mand[1].rotation.y, mb - o, Math.min(1, dt * 30));
     for (let k = 0; k < 2; k++) { VM.antn[k].rotation.x = Math.sin(t * 2.1 + k) * .06 + hs * .006; VM.antn[k].rotation.y = Math.sin(t * 1.4 + k * 2) * .05; }
     VM.glow.material.opacity = P.weapon === 2 ? .25 + P.glowT * .75 + Math.sin(t * 5) * .05 : 0;
     VM.seed.visible = P.weapon === 3 && P.seeds > 0 && P.cd < .3;

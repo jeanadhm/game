@@ -40,7 +40,7 @@ const FX = { projs: [], shake: 0 };
   }
 
   const C = c => new T.Color(c);
-  const COL = { acid: C('#a6ff3d'), eacid: C('#ffb43a'), fire: C('#ffa040'), spark: C('#ffd38a'), dust: C('#6b5136'), hemo: C('#c8d24a'), pollen: C('#ffe9a8'), spore: C('#6dffd6'), white: C('#ffffff') };
+  const COL = { acid: C('#a6ff3d'), eacid: C('#ffb43a'), fire: C('#ffa040'), spark: C('#ffd38a'), dust: C('#6b5136'), hemo: C('#c8d24a'), ash: C('#2a2420'), pollen: C('#ffe9a8'), spore: C('#6dffd6'), white: C('#ffffff') };
   FX.COL = COL;
   let projGeo, mats;
 
@@ -98,7 +98,7 @@ const FX = { projs: [], shake: 0 };
       if (p.y < f) { if (seed) { p.y = f + .01; v.y = Math.abs(v.y) * .35; v.x *= .6; v.z *= .6; } else hit = true; }
       if (p.y > cl) { if (seed) { p.y = cl - .01; v.y = -Math.abs(v.y) * .3; } else hit = true; }
       if (world.wAt(p.x, p.z) > .85) { if (seed) { p.addScaledVector(v, -dt); v.x *= -.4; v.z *= -.4; } else hit = true; }
-      for (const c of world.near(p.x, p.z)) if (p.y < c.top && p.y > c.bot && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 < c.r * c.r) {
+      for (const c of world.near(p.x, p.z)) if (!c.leaf && !c.cap && p.y < c.top && p.y > c.bot && (p.x - c.x) ** 2 + (p.z - c.z) ** 2 < c.r * c.r) {
         if (seed) { const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz) || 1; p.x = c.x + dx / d * c.r * 1.01; p.z = c.z + dz / d * c.r * 1.01; const dot = (v.x * dx + v.z * dz) / d; v.x -= 1.5 * dot * dx / d; v.z -= 1.5 * dot * dz / d; }
         else hit = true;
         break;

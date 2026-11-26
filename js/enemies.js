@@ -163,10 +163,18 @@ const EN = { list: [], flowT: 0 };
       if (e.dead) {
         if (e.d.fly) { const g = world.floorAt(e.pos.x, e.pos.z); if (e.pos.y > g) { e.vy -= 14 * dt; e.pos.y = Math.max(g, e.pos.y + e.vy * dt); } }
         e.deadT += dt; const k = Math.min(1, e.deadT / .35);
-        a.root.rotation.z = k * Math.PI; a.root.position.y = e.pos.y + .78 * s * k - Math.max(0, e.deadT - 7) * .4 * s;
+        a.root.rotation.z = k * Math.PI; a.root.position.y = e.pos.y + .78 * s * k;
         a.setCurl(Math.min(1, e.deadT / 1.2)); a.anim(dt, Math.max(0, 1.5 - e.deadT) * 3);
-        for (const m of a.mats) m.emissive.setRGB(0, 0, 0);
-        if (e.deadT > 10) { scene.remove(a.root); a.mats.forEach(m => m.dispose()); EN.list.splice(i, 1); }
+        // carbonisation : braises orangées, puis carapace toute noire, puis cendres
+        const b = clamp((e.deadT - .15) / 1.3, 0, 1), ember = Math.sin(Math.PI * b) * (1 - b * .5);
+        a.setBurn(b); for (const m of a.mats) m.emissive.setRGB(ember * .55, ember * .14, 0);
+        if (b > 0 && b < 1 && Math.random() < dt * 14 * s) FX.glow.spawn(e.pos.x + rand(-.3, .3) * s, a.root.position.y + rand(-.1, .3) * s, e.pos.z + rand(-.3, .3) * s, rand(-.2, .2), rand(.4, 1.2), rand(-.2, .2), rand(.4, .9), rand(.04, .09) * s, FX.COL.fire);
+        if (e.deadT > 3.4) {
+          const f = clamp(1 - (e.deadT - 3.4) / 1.6, 0, 1);
+          a.setFade(f); a.root.scale.setScalar(s * (.55 + .45 * f));
+          if (Math.random() < dt * 40 * s) FX.dust.spawn(e.pos.x + rand(-.4, .4) * s, a.root.position.y + rand(-.3, .2) * s, e.pos.z + rand(-.4, .4) * s, rand(-.3, .3), rand(.3, 1), rand(-.3, .3), rand(1, 2), rand(.15, .35) * s, FX.COL.ash, { grow: 1.2, drag: 1.5, a: .7 });
+        }
+        if (e.deadT > 5.1) { scene.remove(a.root); a.mats.forEach(m => m.dispose()); EN.list.splice(i, 1); }
         continue;
       }
       e.flash = Math.max(0, e.flash - dt * 5); for (const m of a.mats) m.emissive.setRGB(e.flash * .9, e.flash * .25, 0);

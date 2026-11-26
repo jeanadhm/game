@@ -116,9 +116,22 @@ class World {
   }
   near(x, z) { return this.hash.get(Math.floor(x / 4) * 10007 + Math.floor(z / 4)) || EMPTY; }
 
+  leafTop(c, x, z) {
+    const dx = x - c.x, dz = z - c.z, co = Math.cos(c.yaw), si = Math.sin(c.yaw);
+    const lx = (co * dx - si * dz) / c.sx, v = si * dx + co * dz, t = v / (c.sz * c.cp) + .5;
+    if (t < 0 || t > 1) return -1e9;
+    if (Math.abs(lx) > .44 * Math.pow(Math.sin(Math.PI * t), .7)) return -1e9;
+    return c.y + v * c.tp + lx * lx * .9 * c.sy * c.cp + .04;
+  }
+  topAt(c, x, z) {
+    if (c.leaf) return this.leafTop(c, x, z);
+    const d2 = (x - c.x) ** 2 + (z - c.z) ** 2;
+    if (c.dome) { const D = c.dome, k = d2 / (D.R * D.R); return k >= 1 ? -1e9 : D.y0 + D.h * Math.sqrt(1 - k); }
+    return d2 < (c.r * .85) ** 2 ? c.top : -1e9;
+  }
   groundAt(x, z, y) {
     let g = this.floorAt(x, z);
-    for (const c of this.near(x, z)) if (c.top > g && c.top <= y + .5 && (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * .85) ** 2) g = c.top;
+    for (const c of this.near(x, z)) { const t = this.topAt(c, x, z); if (t > g && t <= y + .5) g = t; }
     return g;
   }
   walkable(x, z, y, step) {
@@ -137,7 +150,8 @@ class World {
   }
   pushOut(p, r) {
     for (const c of this.near(p.x, p.z)) {
-      if (p.y >= c.top - .05 || p.y + .6 < c.bot) continue;
+      if (c.leaf || p.y + .6 < c.bot) continue;
+      if (c.dome ? p.y >= this.topAt(c, p.x, p.z) - .3 : p.y >= c.top - .05) continue;
       const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
       if (d < m && d > 1e-4) { p.x = c.x + dx / d * m; p.z = c.z + dz / d * m; }
     }
@@ -148,7 +162,7 @@ class World {
       const t = i / st, x = a.x + dx * t, y = a.y + dy * t, z = a.z + dz * t;
       if (y < this.floorAt(x, z) - .05) return false;
       if (this.cave && y > this.ceilAt(x, z)) return false;
-      for (const c of this.near(x, z)) if (c.r > .9 && y < c.top && y > c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r * .8) return false;
+      for (const c of this.near(x, z)) if (!c.leaf && c.r > .9 && y < c.top && y > c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r * .8) return false;
     }
     return true;
   }
@@ -157,7 +171,7 @@ class World {
     for (let t = .3; t < max; t += .35) {
       const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
       if (y < this.floorAt(x, z) || (this.cave && y > this.ceilAt(x, z)) || this.wAt(x, z) > .85) return t;
-      for (const c of this.near(x, z)) if (y < c.top && y > c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r) return t;
+      for (const c of this.near(x, z)) if (!c.leaf && y < c.top && y > c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r) return t;
     }
     return max;
   }
@@ -169,7 +183,7 @@ class World {
     for (let r = 0; r < nn; r++) for (let c = 0; c < nn; c++) {
       const x = -h + c + .5, z = -h + r + .5;
       let ok = this.wAt(x, z) < .66;
-      if (ok) { const f = this.floorAt(x, z); for (const k of this.near(x, z)) if (k.r > .45 && Math.hypot(x - k.x, z - k.z) < k.r + .3 && k.top - f > .7) { ok = false; break; } }
+      if (ok) { const f = this.floorAt(x, z); for (const k of this.near(x, z)) if (!k.leaf && !k.cap && k.r > .45 && Math.hypot(x - k.x, z - k.z) < k.r + .3 && k.top - f > .7) { ok = false; break; } }
       this.walk[r * nn + c] = ok ? 1 : 0;
     }
   }
@@ -203,7 +217,8 @@ class World {
 
   // --- décor de surface
   decorSurface(rng) {
-    const L = this.L, h = this.half, g = this.group;
+    this.mush = [];
+    const L = this.L, h = this.half, g = this.group; this.highSpots = [];
     const clear = (x, z) => (L.clear || EMPTY).some(c => Math.hypot(x - c[0], z - c[1]) < c[2]);
     this.addGrass(rng, L.grass || 2400, clear);
     // rochers
@@ -214,7 +229,8 @@ class World {
       const y = this.floorAt(x, z) - s * .2;
       const m = new T.Mesh(rockGeos[Math.floor(rng() * 4)], rockMats[Math.floor(rng() * 4)]);
       m.scale.setScalar(s); m.position.set(x, y, z); m.rotation.y = rng() * 6.28; m.castShadow = m.receiveShadow = true; g.add(m);
-      this.addCol(x, z, s * .92, y + s * .6);
+      const c = this.addCol(x, z, s * .92, y + s * .6); c.dome = { y0: y, h: s * .58, R: s * .92 };
+      if (s > 4) this.highSpots.push({ x, z });
     };
     for (const r of L.rocks || EMPTY) placeRock(r[0], r[1], r[2]);
     for (let i = 0; i < (L.rockCount || 45); i++) {
@@ -235,9 +251,9 @@ class World {
       const x = (rng() * 2 - 1) * (h - 10), z = (rng() * 2 - 1) * (h - 10); if (clear(x, z)) continue;
       const s = 7 + rng() * 8, f = this.floorAt(x, z);
       if (Math.abs(this.floorAt(x + s * .4, z) - f) > .9 || Math.abs(this.floorAt(x, z + s * .4) - f) > .9) continue;
-      const m = new T.Mesh(lg, new T.MeshStandardMaterial({ map: TEX.leaf, color: leafCols[Math.floor(rng() * leafCols.length)], side: T.DoubleSide, roughness: .75 }));
-      m.scale.set(s * .7, s * .5, s); m.position.set(x, f + .06, z); m.rotation.y = rng() * 6.28; m.receiveShadow = m.castShadow = true; g.add(m);
+      this.placeLeaf(lg, x, z, f + .06, rng() * 6.28, 0, s, leafCols[Math.floor(rng() * leafCols.length)]);
     }
+    this.leafGeom = lg; this.leafCols = leafCols;
     // champignons
     for (let i = 0; i < (L.mushrooms || 7); i++) {
       const x = (rng() * 2 - 1) * (h - 12), z = (rng() * 2 - 1) * (h - 12); if (clear(x, z)) continue;
@@ -260,6 +276,25 @@ class World {
       const m = new T.Mesh(ANT.sph, dewMat); m.scale.set(r, r * .82, r); m.position.set(x, this.floorAt(x, z) + r * .7, z); g.add(m);
     }
     if (L.mound) this.anthill(L.mound);
+    // feuilles posées en rampe jusqu'aux chapeaux des champignons : on peut y monter et sauter de l'un à l'autre
+    for (const mu of this.mush) {
+      for (let tries = 0; tries < 6; tries++) {
+        const a = rng() * 6.28, rim = mu.R * .55, tx = mu.x + Math.cos(a) * rim, tz = mu.z + Math.sin(a) * rim, ht = mu.y0 + mu.h * .835 + .2;
+        const fb0 = this.floorAt(tx, tz), sz = Math.max(10, (ht - fb0) / .55), p = Math.asin(clamp((ht - fb0) / sz, 0, .62));
+        const hs = sz * Math.cos(p), bx = tx + Math.cos(a) * hs, bz = tz + Math.sin(a) * hs;
+        if (Math.max(Math.abs(bx), Math.abs(bz)) > h - 10 || this.wAt(bx, bz) > .2) continue;
+        const fb = this.floorAt(bx, bz), p2 = Math.asin(clamp((ht - fb) / sz, 0, .7));
+        this.placeLeaf(this.leafGeom, (tx + bx) / 2, (tz + bz) / 2, (ht + fb) / 2 - .05, Math.atan2(-Math.cos(a), -Math.sin(a)), p2, sz, this.leafCols[Math.floor(rng() * 5)]);
+        this.highSpots.unshift({ x: mu.x, z: mu.z });
+        break;
+      }
+    }
+  }
+  placeLeaf(geo, x, z, y, yaw, pitch, s, col) {
+    const m = new T.Mesh(geo, new T.MeshStandardMaterial({ map: TEX.leaf, color: col, side: T.DoubleSide, roughness: .75 }));
+    m.scale.set(s * .7, s * .5, s); m.position.set(x, y, z); m.rotation.set(-pitch, yaw, 0, 'YXZ'); m.receiveShadow = m.castShadow = true; this.group.add(m);
+    const c = this.addCol(x, z, s * .55, y + s * .5, -1e9);
+    Object.assign(c, { leaf: true, y, yaw, cp: Math.cos(pitch), tp: Math.tan(pitch), sx: s * .7, sy: s * .5, sz: s });
   }
 
   addGrass(rng, count, clear) {
@@ -331,6 +366,9 @@ class World {
     gill.rotation.x = Math.PI / 2; gill.position.y = hgt - .1; g.add(gill);
     g.position.set(x, y - .2, z); this.group.add(g);
     this.addCol(x, z, r + .1, y + hgt);
+    const y0 = y - .3 + hgt, R = r * 3.3, top = this.addCol(x, z, R, y0 + r * 1.7, y0 - .15);
+    top.dome = { y0, h: r * 1.7, R }; top.cap = true;
+    (this.mush || (this.mush = [])).push({ x, z, y0, R, h: r * 1.7 });
   }
   flower(x, z, hgt, k) {
     const y = this.floorAt(x, z), g = new T.Group();

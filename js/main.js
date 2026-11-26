@@ -86,6 +86,7 @@ function loadLevel(i, cp) {
   renderer.toneMappingExposure = cave ? 1.2 : .95; POST.mood(cave);
   for (const [t, x, z] of L.enemies) EN.spawn(t, x, z);
   for (const [t, x, z] of L.pickups || []) PK.spawn(t, x, z);
+  if (!cave && world.highSpots) world.highSpots.slice(0, 5).forEach(h => PK.spawn('nectar', h.x, h.z));
   (L.cocoons || []).forEach(([x, z], idx) => { if (!G.taken.includes(idx)) PK.spawn('cocoon', x, z, { idx }); });
   G.cocoons = G.taken.length;
   if (L.setup) L.setup(L, G);
@@ -216,8 +217,7 @@ function boot(d) {
   try { const s = localStorage.getItem('cn-sens'); if (s) { P.sens = +s; $('sens').value = s; } } catch (e) {}
   G.unlocked = clamp(Math.max(G.unlocked, (d && d.unlocked) || 1), 1, LEVELS.length);
   applyQuality(); HUD.nectar();
-  titleScreen();
-  requestAnimationFrame(frame);
+  ANT.load(() => { if (ANT.vm) P.useVMModel(); titleScreen(); requestAnimationFrame(frame); });
 }
 if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ unlocked: G.unlocked }));
 if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(boot); else boot(window.claude && window.claude.hot && window.claude.hot.data || {});

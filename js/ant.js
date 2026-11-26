@@ -15,8 +15,8 @@ function chitinMat(color, rough = .3) {
 const X_AXIS = new T.Vector3(1, 0, 0);
 function aim(obj, dir) { obj.quaternion.setFromUnitVectors(X_AXIS, dir.clone().normalize()); }
 
-// o: { body, gaster, legs, head (taille relative), legLen }
-function buildAnt(o) {
+// modèle de secours, entièrement généré par le code (si models/ant.glb ne se charge pas)
+function buildAntProc(o) {
   const root = new T.Group(), body = new T.Group(); root.add(body); root.rotation.order = 'YXZ';
   const mB = chitinMat(o.body), mG = chitinMat(o.gaster, .22), mL = chitinMat(o.legs || o.body, .42);
   const mE = new T.MeshPhysicalMaterial({ color: '#060606', roughness: .05, clearcoat: 1 });
@@ -85,6 +85,9 @@ function buildAnt(o) {
     setOpen(v) { openT = v; },
     setCurl(v) { curl = v; },
     setLift(v) { lift = v; },
+    _b: [mB, mG, mL].map(m => m.color.clone()),
+    setBurn(k) { this.mats.forEach((m, i) => { m.color.copy(this._b[i]).lerp(CHAR, k); m.clearcoat = 1 - k; }); },
+    setFade(k) { for (const m of this.mats) { m.transparent = k < 1; m.opacity = k; } },
     flap(t) { for (const w of wings) w.p.rotation.z = w.s * (Math.sin(t * 46 + w.k * .9) * .7 + .15); },
     anim(dt, speed) {
       ph += dt * speed * 7; tw += dt;
@@ -99,6 +102,73 @@ function buildAnt(o) {
       open += (openT - open) * Math.min(1, dt * 18);
       mand[0].rotation.y = -open; mand[1].rotation.y = open;
       gaster.rotation.x = -.3 + lift + Math.sin(tw * 1.5) * .03;
+    },
+  };
+}
+
+// --- modèle Blender (models/ant.glb) : maillage organique + squelette + animations « walk » et « idle »
+const CHAR = new T.Color('#0a0705');
+ANT.load = done => {
+  if (!T.GLTFLoader || !T.SkeletonUtils) { done(); return; }
+  const L = new T.GLTFLoader(); let n = 2; const fin = () => { if (--n === 0) done(); };
+  L.load('models/ant.glb', g => { ANT.gltf = g; fin(); }, undefined, () => fin());
+  L.load('models/vm.glb', g => { ANT.vm = g; fin(); }, undefined, () => fin());
+};
+const UPV = new T.Vector3(0, 1, 0), XV = new T.Vector3(1, 0, 0), ZV = new T.Vector3(0, 0, 1);
+// o: { body, gaster, legs, head (taille relative), legLen, wings, gasterScale }
+function buildAnt(o) {
+  if (!ANT.gltf) return buildAntProc(o);
+  const g = ANT.gltf, model = T.SkeletonUtils.clone(g.scene);
+  const root = new T.Group(), body = new T.Group(); root.rotation.order = 'YXZ'; root.add(body); body.add(model);
+  const mB = chitinMat(o.body), mG = chitinMat(o.gaster, .22), mL = chitinMat(o.legs || o.body, .4);
+  const mE = new T.MeshPhysicalMaterial({ color: '#050505', roughness: .05, clearcoat: 1 });
+  const mW = new T.MeshPhysicalMaterial({ color: '#dfe8ff', roughness: .1, transparent: true, opacity: .32, side: T.DoubleSide, clearcoat: 1, depthWrite: false });
+  const map = { body: mB, gaster: mG, leg: mL, eye: mE, wing: mW };
+  model.traverse(m => { if (m.isMesh) { m.material = map[m.material.name] || mB; m.castShadow = true; m.frustumCulled = false; if (m.material === mW) m.visible = !!o.wings; } });
+  const B = {}; model.traverse(n => { if (n.isBone) B[n.name.replace(/[.]/g, '')] = n; });
+  model.updateMatrixWorld(true);
+  // axes de rotation exprimés dans le repère local de chaque os (haut, droite, avant du modèle au repos)
+  const rig = {}, q = new T.Quaternion();
+  for (const k in B) { const b = B[k]; b.getWorldQuaternion(q); q.invert(); rig[k] = { rest: b.quaternion.clone(), up: UPV.clone().applyQuaternion(q), x: XV.clone().applyQuaternion(q), z: ZV.clone().applyQuaternion(q) }; }
+  const setRot = (k, axis, ang) => { const r = rig[k]; if (!r) return; B[k].quaternion.copy(r.rest).multiply(q.setFromAxisAngle(r[axis], ang)); };
+  const hs = o.head || 1;
+  if (B.head) B.head.scale.setScalar(hs);
+  if (B.gaster && o.gasterScale) B.gaster.scale.setScalar(o.gasterScale);
+  if (o.legLen && o.legLen !== 1) for (let i = 0; i < 3; i++) for (const S of 'LR') if (B['femur' + i + S]) B['femur' + i + S].scale.setScalar(o.legLen);
+  const mixer = new T.AnimationMixer(model), clip = n => g.animations.find(a => a.name === n);
+  const walk = mixer.clipAction(clip('walk')), idle = mixer.clipAction(clip('idle'));
+  walk.play(); idle.play(); walk.time = Math.random(); idle.time = Math.random() * 2;
+  let open = 0, openT = .1, lift = 0, curl = 0, dead = false, burn = 0, fade = 1, ft = Math.random() * 6;
+  const mats = [mB, mG, mL];
+  const base = mats.map(m => ({ c: m.color.clone(), r: m.roughness }));
+  return {
+    root, body, head: B.head, gaster: B.gaster, mats, legs: [],
+    hit: [
+      { p: new T.Vector3(0, .44, .36 + .07 * hs), r: .2 * hs, head: true },
+      { p: new T.Vector3(0, .38, .08), r: .19 },
+      { p: new T.Vector3(0, .34, -.52), r: .3 * (o.gasterScale || 1) },
+    ],
+    setOpen(v) { openT = v; },
+    setLift(v) { lift = v; },
+    setCurl(v) { curl = v; if (v > 0 && !dead) { dead = true; walk.fadeOut(.3); idle.fadeOut(.3); } },
+    // carbonisation : la carapace noircit puis se ternit
+    setBurn(k) { burn = k; mats.forEach((m, i) => { m.color.copy(base[i].c).lerp(CHAR, k); m.roughness = lerp(base[i].r, .95, k); m.clearcoat = 1 - k; }); },
+    setFade(k) {
+      if (fade === k) return; fade = k;
+      for (const m of [...mats, mE]) { m.transparent = k < 1; m.opacity = k; m.depthWrite = k > .5; }
+    },
+    flap(t) { for (let k = 0; k < 2; k++) for (const [S, s] of [['L', -1], ['R', 1]]) setRot('wing' + k + S, 'z', s * (Math.sin(t * 46 + k * .9) * .7 + .15)); },
+    anim(dt, speed) {
+      if (!dead) {
+        const w = clamp(speed / 1.2, 0, 1);
+        walk.setEffectiveWeight(w); idle.setEffectiveWeight(1 - w); walk.setEffectiveTimeScale(clamp(speed * .9, .3, 4));
+      }
+      mixer.update(dt);
+      open += (openT - open) * Math.min(1, dt * 18);
+      setRot('mandL', 'up', -open); setRot('mandR', 'up', open);
+      setRot('gaster', 'x', lift + Math.sin((ft += dt) * 1.5) * .03);
+      if (dead) for (let i = 0; i < 3; i++) for (const [S, s] of [['L', -1], ['R', 1]]) { setRot('femur' + i + S, 'z', s * curl * 1.3); setRot('tibia' + i + S, 'z', s * curl * .9); }
+      body.position.y = dead ? 0 : Math.abs(Math.sin(walk.time * Math.PI * 4)) * .01 * clamp(speed, 0, 1);
     },
   };
 }
