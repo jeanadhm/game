@@ -71,6 +71,11 @@ const OPEN_L = { id: 'open', chapter: 'Monde ouvert', name: '', type: 'surface',
       if (nw < wantW) spawnAt(c, 'worker', 10 + Math.random() * 22);
       else if (ns < wantS) spawnAt(c, Math.random() < .3 ? 'spitter' : Math.random() < .15 ? 'scout' : 'soldier', c.r * .9 + Math.random() * 8);
     }
+    // garde du nid : une partie des soldates patrouille autour de la fourmilière et attaque les intruses
+    const nearHome = OW.mode === 'surface' && Math.hypot(COL.player.x - P.pos.x, COL.player.z - P.pos.z) < 100;
+    const gwant = nearHome ? Math.min(8, Math.ceil(COL.player.soldiers * .6)) : 0, guards = ALLY.list.filter(a => a.guard);
+    if (guards.length > gwant) { const a = guards[guards.length - 1]; scene.remove(a.ant.root); ALLY.list.splice(ALLY.list.indexOf(a), 1); HUD.allies(); }
+    else if (guards.length < gwant) { const sp = COL.player.species; ALLY.spawnSquad({ name: 'Garde', body: sp.body, gaster: sp.gaster, head: 1.3, ranged: Math.random() < .3, slot: 0, guard: true, guardAt: COL.player, ang: Math.random() * 6.28 }); HUD.allies(); }
     // tes ouvrières vont et viennent entre la fourmilière et la nourriture
     const p = COL.player, want = OW.mode === 'surface' && Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < 90 ? Math.min(8, Math.ceil(p.workers / 3)) : 0;
     while (OW.amb.length > want) { const a = OW.amb.pop(); scene.remove(a.ant.root); }
@@ -84,14 +89,18 @@ const OPEN_L = { id: 'open', chapter: 'Monde ouvert', name: '', type: 'surface',
   }
   function spawnAmb(x, z) {
     const ant = buildAnt({ body: '#151311', gaster: '#0b0a09', head: .9, legLen: 1.05 }); ant.root.scale.setScalar(.75);
-    const a = { ant, pos: new T.Vector3(x, world.groundAt(x, z, 99), z), vel: new T.Vector3(), yaw: 0, goal: null, carry: null, t: 0 };
+    const a = { ant, pos: new T.Vector3(x, world.groundAt(x, z, 99), z), vel: new T.Vector3(), yaw: 0, goal: null, carry: null, t: 0, hp: 22, dead: false, isWorker: true,
+      damage(amt) { if (this.dead) return; this.hp -= amt; this.flee = 4; if (this.hp <= 0) { this.dead = true; scene.remove(this.ant.root); COL.player.workers = Math.max(1, COL.player.workers - 1); HUD.feed('Une de tes ouvrières a été tuée'); } } };
     ant.root.position.copy(a.pos); scene.add(ant.root); OW.amb.push(a);
   }
   function clearAmb() { for (const a of OW.amb) scene.remove(a.ant.root); OW.amb = []; if (OW.queen) { scene.remove(OW.queen.root); OW.queen = null; } }
   function ambUpdate(dt) {
     const home = OW.mode === 'nest' ? null : COL.player, foods = OW.surface ? OW.surface.food : [];
+    OW.amb = OW.amb.filter(a => !a.dead);
     for (const a of OW.amb) {
-      a.t -= dt;
+      a.t -= dt; a.flee = Math.max(0, (a.flee || 0) - dt);
+      if (home && EN.list.some(e => !e.dead && !e.neutral && e.pos.distanceToSquared(a.pos) < 100)) a.flee = 3;
+      if (a.flee > 0 && home) { a.goal = [home.x + rand(-2, 2), home.z + rand(-2, 2)]; a.carry = false; a.t = 2; }
       if (!a.goal || a.t <= 0 || Math.hypot(a.goal[0] - a.pos.x, a.goal[1] - a.pos.z) < 1.2) {
         if (OW.mode === 'nest') { const rm = world.L.shapes.filter(s => !s.b); const r = rm[Math.floor(Math.random() * rm.length)]; a.goal = [r.x + rand(-3, 3), r.z + rand(-3, 3)]; a.carry = Math.random() < .4; }
         else if (a.carry || !foods.length) { a.goal = [home.x + rand(-2, 2), home.z + rand(-2, 2)]; a.carry = false; }
@@ -168,7 +177,9 @@ const OPEN_L = { id: 'open', chapter: 'Monde ouvert', name: '', type: 'surface',
   };
 
   // --- surface ⇄ souterrain
+  function dropGuards() { for (const a of [...ALLY.list]) if (a.guard) { scene.remove(a.ant.root); ALLY.list.splice(ALLY.list.indexOf(a), 1); } }
   function stashSurface() {
+    dropGuards();
     OW.stash = { en: EN.list, pk: PK.list };
     for (const e of EN.list) scene.remove(e.ant.root); for (const p of PK.list) scene.remove(p.g);
     EN.list = []; PK.list = []; FX.clear(); clearAmb();
@@ -186,6 +197,7 @@ const OPEN_L = { id: 'open', chapter: 'Monde ouvert', name: '', type: 'surface',
     if (c.player) {
       const q = buildAnt({ body: '#141210', gaster: '#0b0a09', head: 1.1, gasterScale: 2 }); q.root.scale.setScalar(4.2); q.root.position.set(0, world.floorAt(0, 32), 32); q.root.rotation.y = Math.PI; scene.add(q.root); OW.queen = q;
       for (let i = 0; i < Math.min(8, Math.ceil(c.workers / 3)); i++) spawnAmb(rand(-4, 4), -6 + rand(-4, 4));
+      for (let i = 0; i < Math.min(5, Math.ceil(c.soldiers / 2)); i++) ALLY.spawnSquad({ name: 'Garde', body: c.species.body, gaster: c.species.gaster, head: 1.3, slot: 0, guard: true, guardAt: { x: 0, z: -6, r: 5 }, ang: i * 1.3 });
       HUD.level('Ta fourmilière', `${c.chambers.length} chambres`);
     } else {
       EN.spawn('queen', 0, 32, { col: c.id, body: c.species.body, gaster: c.species.gaster }).max *= c.queenMax / 1300;
@@ -205,7 +217,7 @@ const OPEN_L = { id: 'open', chapter: 'Monde ouvert', name: '', type: 'surface',
       if (q && !q.dead) c.queenHp = Math.max(1, q.hp);
       c.soldiers = Math.max(0, Math.min(c.soldiers, EN.list.filter(e => !e.dead && e.type !== 'worker' && !e.d.queen).length + Math.max(0, c.soldiers - 14)));
     }
-    EN.clear(); PK.clear(); FX.clear(); clearAmb(); HUD.boss(null, null);
+    EN.clear(); PK.clear(); FX.clear(); clearAmb(); dropGuards(); HUD.boss(null, null);
     OW.nestWorld.clear(); OW.nestWorld = null; world = OW.surface; OW.surface.show(true);
     EN.list = OW.stash.en.filter(e => !e.dead && (c.alive || e.col !== c.id)); for (const e of EN.list) scene.add(e.ant.root);
     PK.list = OW.stash.pk; for (const p of PK.list) scene.add(p.g);

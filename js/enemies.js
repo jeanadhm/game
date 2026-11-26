@@ -14,7 +14,7 @@ const EN = { list: [], flowT: 0 };
 (() => {
   const V1 = new T.Vector3(), V2 = new T.Vector3(), V3 = new T.Vector3();
   const tCenter = (t, out) => out.set(t.pos.x, t.pos.y + .35, t.pos.z);
-  EN.targets = () => { const l = P.dead ? [] : [P]; for (const a of ALLY.list) if (!a.down) l.push(a); return l; };
+  EN.targets = () => { const l = P.dead ? [] : [P]; for (const a of ALLY.list) if (!a.down) l.push(a); if (typeof OW !== 'undefined') for (const w of OW.amb) if (!w.dead) l.push(w); return l; };
 
   EN.clear = () => { for (const e of EN.list) { scene.remove(e.ant.root); e.ant.mats.forEach(m => m.dispose()); } EN.list = []; };
   EN.spawn = (type, x, z, o = {}) => {
@@ -120,8 +120,9 @@ const EN = { list: [], flowT: 0 };
   }
   function pickTarget(e, pe) {
     const ts = EN.targets(); if (!ts.length) { e.tgt = null; return; }
-    let best = null, bd = 1e9;
-    for (const t of ts) { const d = Math.hypot(t.pos.x - e.pos.x, t.pos.z - e.pos.z) - (t === P ? 1.5 : 0); if (d < bd) { bd = d; best = t; } }
+    // une raideuse marche sur la fourmilière et n'attaque que ce qu'elle croise en chemin
+    let best = null, bd = e.raid ? 18 : 1e9;
+    for (const t of ts) { const d = Math.hypot(t.pos.x - e.pos.x, t.pos.z - e.pos.z) - (t === P ? .4 : 0); if (d < bd) { bd = d; best = t; } }
     e.tgt = best;
   }
 

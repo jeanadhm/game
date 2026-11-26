@@ -89,9 +89,10 @@ const HUD = (() => {
       if (ang !== null) { const d = $('dmgDir'); d.style.transform = `rotate(${-ang}rad)`; d.classList.remove('on'); void d.offsetWidth; d.classList.add('on'); }
     },
     allies() {
-      if (ALLY.list.length > 3) { const dn = ALLY.list.filter(a => a.down).length, hp = ALLY.list.reduce((s, a) => s + a.hp / a.max, 0) / ALLY.list.length; $('allies').innerHTML = `<div class="order">Armée : <b>${ALLY.list.length} soldates</b>${dn ? ` · ${dn} à terre` : ''} · ${ORDERS[ALLY.order]} <small>${IN.touch ? '' : 'G ordre · R rappel'}</small></div><div class="ally"><span>Santé</span><div class="track"><div style="width:${hp * 100}%"></div></div></div>`; return; }
-      $('allies').innerHTML = (ALLY.list.length ? `<div class="order">Escouade : <b>${ORDERS[ALLY.order]}</b> <small>${IN.touch ? '' : 'G ordre · R rappel'}</small></div>` : '') + ALLY.list.map(a => `<div class="ally${a.down ? ' down' : ''}"><span></span><div class="track"><div style="width:${a.hp / a.max * 100}%"></div></div></div>`).join('');
-      [...$('allies').querySelectorAll('.ally span')].forEach((el, i) => el.textContent = ALLY.list[i].name + (ALLY.list[i].down ? ' · à terre' : ''));
+      const AL = ALLY.list.filter(a => !a.guard), gn = ALLY.list.length - AL.length;
+      if (AL.length > 3) { const dn = AL.filter(a => a.down).length, hp = AL.reduce((s, a) => s + a.hp / a.max, 0) / AL.length; $('allies').innerHTML = `<div class="order">Armée : <b>${AL.length} soldates</b>${dn ? ` · ${dn} à terre` : ''} · ${ORDERS[ALLY.order]} <small>${IN.touch ? '' : 'G ordre · R rappel'}</small></div><div class="ally"><span>Santé</span><div class="track"><div style="width:${hp * 100}%"></div></div></div>`; return; }
+      $('allies').innerHTML = (gn ? `<div class="order">Garde du nid : <b>${gn}</b></div>` : '') + (AL.length ? `<div class="order">Escouade : <b>${ORDERS[ALLY.order]}</b> <small>${IN.touch ? '' : 'G ordre · R rappel'}</small></div>` : '') + AL.map(a => `<div class="ally${a.down ? ' down' : ''}"><span></span><div class="track"><div style="width:${a.hp / a.max * 100}%"></div></div></div>`).join('');
+      [...$('allies').querySelectorAll('.ally span')].forEach((el, i) => el.textContent = AL[i].name + (AL[i].down ? ' · à terre' : ''));
     },
     prompt(t) { const p = $('prompt'); if (p.textContent !== t) { p.textContent = t; p.hidden = !t; } },
     nectar() { $('nect').textContent = UP.nectar; $('nectW').classList.remove('bump'); void $('nectW').offsetWidth; $('nectW').classList.add('bump'); },

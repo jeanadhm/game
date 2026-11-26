@@ -30,7 +30,7 @@ const ORDERS = { follow: 'Suivre', hold: 'Tenir la position', free: 'Libre' };
   ALLY.recall = () => {
     if (!ALLY.list.length) return;
     ALLY.order = 'follow'; ALLY.recallT = 3.5; if (ALLY.marker) ALLY.marker.visible = false;
-    for (const a of ALLY.list) a.tgt = null;
+    for (const a of ALLY.list) if (!a.guard) a.tgt = null;
     HUD.say('Nyx, éclaireuse', 'On arrive !', 1.6); HUD.allies(); SFX.chitter(0);
   };
   // armée de la colonie (monde ouvert) : des soldates en formation, par rangées de trois
@@ -44,16 +44,16 @@ const ORDERS = { follow: 'Suivre', hold: 'Tenir la position', free: 'Libre' };
   };
   ALLY.disband = () => {
     let back = 0;
-    for (const a of [...ALLY.list]) if (a.army) { if (!a.down) back++; scene.remove(a.ant.root); ALLY.list.splice(ALLY.list.indexOf(a), 1); }
+    for (const a of [...ALLY.list]) if (a.army && !a.guard) { if (!a.down) back++; scene.remove(a.ant.root); ALLY.list.splice(ALLY.list.indexOf(a), 1); }
     COL.player.soldiers += back; HUD.allies(); return back;
   };
   ALLY.spawnSquad = one => {
     if (!one) { ALLY.clear(); if (!G.squad) return; }
     for (const d of one ? [one] : DEFS) {
       const ant = buildAnt({ body: d.body, gaster: d.gaster, head: d.head });
-      const x = P.pos.x + d.slot * 1.8, z = P.pos.z + 1.5 + (d.row || 0) * 1.8;
+      const x = d.guardAt ? d.guardAt.x + Math.cos(d.ang || 0) * (d.guardAt.r + 2) : P.pos.x + d.slot * 1.8, z = d.guardAt ? d.guardAt.z + Math.sin(d.ang || 0) * (d.guardAt.r + 2) : P.pos.z + 1.5 + (d.row || 0) * 1.8;
       const a = {
-        d, name: d.name, ant, isAlly: true, army: !!d.army, downT: 0, pos: new T.Vector3(x, world.groundAt(x, z, 99), z), vel: new T.Vector3(), yaw: P.yaw + Math.PI,
+        d, name: d.name, ant, isAlly: true, army: !!d.army, guard: !!d.guard, guardAt: d.guardAt || null, ring: Math.random() * 6.28, downT: 0, pos: new T.Vector3(x, world.groundAt(x, z, 99), z), vel: new T.Vector3(), yaw: P.yaw + Math.PI,
         hp: 160, max: 160, down: false, revive: 0, tgt: null, scan: 0, cd: 0, calm: 0, flash: 0,
         damage(amt, from) {
           if (this.down || G.state !== 'play') return;
@@ -76,10 +76,10 @@ const ORDERS = { follow: 'Suivre', hold: 'Tenir la position', free: 'Libre' };
     const engageR = danger ? 15 : ALLY.order === 'free' ? 22 : ALLY.order === 'hold' ? 9 : 11, leashR = ALLY.order === 'free' ? 26 : ALLY.order === 'hold' ? 11 : 14;
     if (ALLY.list.some(a => a.down) && !ALLY.list.some(a => a.down && a.revive > 0)) HUD.prompt('');
     for (const a of ALLY.list) {
-      const ant = a.ant;
+      const ant = a.ant, gd = a.guard, anc = gd ? a.guardAt : anchor, eR = gd ? 55 : engageR, lR = gd ? 58 : leashR, rec = gd ? 0 : ALLY.recallT;
       a.flash = Math.max(0, a.flash - dt * 5); for (const m of ant.mats) m.emissive.setRGB(a.flash * .7, a.flash * .1, 0);
       const pd = Math.hypot(P.pos.x - a.pos.x, P.pos.z - a.pos.z);
-      if (a.down && a.army && (a.downT += dt) > 30) { scene.remove(a.ant.root); ALLY.list.splice(ALLY.list.indexOf(a), 1); if (!a.d.col) HUD.feed('Une soldate est morte'); HUD.allies(); break; }
+      if (a.down && (a.army || gd) && (a.downT += dt) > (gd ? 15 : 30)) { scene.remove(a.ant.root); ALLY.list.splice(ALLY.list.indexOf(a), 1); if (gd) { COL.player.soldiers = Math.max(0, COL.player.soldiers - 1); HUD.feed('Une garde du nid est morte'); } else if (!a.d.col) HUD.feed('Une soldate est morte'); HUD.allies(); break; }
       if (a.down) {
         if (!P.dead && pd < 1.8) { a.revive += dt; HUD.prompt(`Relève ${a.name}… ${Math.ceil(2 - a.revive)}`); if (a.revive >= 2) { a.down = false; a.hp = a.max * .5; ant.setCurl(0); ant.resetFeet(); a.ant = rebuild(a); HUD.feed(`${a.name} est de retour`); HUD.prompt(''); HUD.allies(); } }
         else a.revive = Math.max(0, a.revive - dt);
@@ -91,14 +91,14 @@ const ORDERS = { follow: 'Suivre', hold: 'Tenir la position', free: 'Libre' };
       if (a.scan <= 0) {
         a.scan = .3; a.tgt = null; let bd = 1e9;
         for (const e of EN.list) {
-          if (e.dead || e.neutral || ALLY.recallT > 0) continue;
-          const da = Math.hypot(e.pos.x - (danger ? P.pos.x : anchor.x), e.pos.z - (danger ? P.pos.z : anchor.z)); if (da > engageR) continue;
+          if (e.dead || e.neutral || rec > 0) continue;
+          const da = Math.hypot(e.pos.x - (danger && !gd ? P.pos.x : anc.x), e.pos.z - (danger && !gd ? P.pos.z : anc.z)); if (da > eR) continue;
           const d = e.pos.distanceTo(a.pos) - (danger && e.tgt === P ? 8 : 0); if (d < bd && world.los(V.set(a.pos.x, a.pos.y + .5, a.pos.z), V2.set(e.pos.x, e.pos.y + .5 * e.d.scale, e.pos.z))) { bd = d; a.tgt = e; } }
       }
       let tx = 0, tz = 0, spd = 0, face = null;
-      const off = Math.hypot(a.pos.x - anchor.x, a.pos.z - anchor.z);
-      if (off > leashR + 4) a.tgt = null;
-      const e = a.tgt && !a.tgt.dead && ALLY.recallT <= 0 ? a.tgt : null;
+      const off = Math.hypot(a.pos.x - anc.x, a.pos.z - anc.z);
+      if (off > lR + 4) a.tgt = null;
+      const e = a.tgt && !a.tgt.dead && rec <= 0 ? a.tgt : null;
       if (e) {
         a.calm = 0;
         const dx = e.pos.x - a.pos.x, dz = e.pos.z - a.pos.z, d = Math.hypot(dx, dz), reach = 1.3 + .7 * e.d.scale;
@@ -116,14 +116,15 @@ const ORDERS = { follow: 'Suivre', hold: 'Tenir la position', free: 'Libre' };
       } else {
         // formation : derrière la joueuse (suivre, rappel, libre) ou autour du point tenu
         let gx, gz;
-        if (ALLY.order === 'hold' && ALLY.hold && ALLY.recallT <= 0) { gx = ALLY.hold.x + a.d.slot * 1.4; gz = ALLY.hold.z + .6; }
+        if (gd) { const ang = a.ring + G.time * .04, rr = (a.guardAt.r || 8) * .95 + 2; gx = a.guardAt.x + Math.cos(ang) * rr; gz = a.guardAt.z + Math.sin(ang) * rr; }
+        else if (ALLY.order === 'hold' && ALLY.hold && ALLY.recallT <= 0) { gx = ALLY.hold.x + a.d.slot * 1.4; gz = ALLY.hold.z + .6; }
         else {
           const rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw), bx = Math.sin(P.yaw), bz = Math.cos(P.yaw), sp2 = ALLY.order === 'free' ? 3.2 : 1.9, bk = ALLY.order === 'free' ? 3.5 : 2.1;
           gx = P.pos.x + rx * a.d.slot * sp2 + bx * (bk + (a.d.row || 0) * 1.8); gz = P.pos.z + rz * a.d.slot * sp2 + bz * (bk + (a.d.row || 0) * 1.8);
         }
         const d = Math.hypot(gx - a.pos.x, gz - a.pos.z);
         if (d > .7) { tx = gx - a.pos.x; tz = gz - a.pos.z; spd = clamp(d * 1.6, 1.5, ALLY.recallT > 0 ? 11 : 8.5); }
-        if (pd > 40 && !(ALLY.order === 'hold' && ALLY.recallT <= 0)) { a.pos.set(gx, world.groundAt(gx, gz, 99), gz); ant.resetFeet(); }
+        if (!gd && pd > 40 && !(ALLY.order === 'hold' && ALLY.recallT <= 0)) { a.pos.set(gx, world.groundAt(gx, gz, 99), gz); ant.resetFeet(); }
       }
       const k = Math.hypot(tx, tz);
       a.vel.x += ((k ? tx / k * spd : 0) - a.vel.x) * Math.min(1, dt * 6); a.vel.z += ((k ? tz / k * spd : 0) - a.vel.z) * Math.min(1, dt * 6);
