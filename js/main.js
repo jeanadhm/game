@@ -12,10 +12,14 @@ makeTextures();
 // ciel et éclairage
 const SUN_DIR = new T.Vector3(.45, .55, .7).normalize();
 const skyMat = new T.ShaderMaterial({
-  uniforms: { top: { value: new T.Color('#3f7fd0') }, mid: { value: new T.Color('#a9d3ee') }, bot: { value: new T.Color('#e9dcc0') }, sun: { value: SUN_DIR.clone() } },
+  uniforms: { uTime: { value: 0 }, top: { value: new T.Color('#3f7fd0') }, mid: { value: new T.Color('#a9d3ee') }, bot: { value: new T.Color('#e9dcc0') }, sun: { value: SUN_DIR.clone() } },
   vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
-  fragmentShader: `uniform vec3 top, mid, bot, sun; varying vec3 vD;
+  fragmentShader: `uniform vec3 top, mid, bot, sun; uniform float uTime; varying vec3 vD;
+    float hh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5); }
+    float nn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hh(i), hh(i + vec2(1., 0.)), f.x), mix(hh(i + vec2(0., 1.)), hh(i + vec2(1., 1.)), f.x), f.y); }
+    float fb(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 5; i++) { s += a * nn(p); p *= 2.03; a *= .5; } return s; }
     void main(){ float y = vD.y; vec3 c = y > 0. ? mix(mid, top, pow(y, .6)) : mix(mid, bot, min(1., -y * 3.));
+      if (y > 0.) { vec2 uv = vD.xz / (y + .12) * 1.4 + vec2(uTime * .012, uTime * .004); float cl = smoothstep(.52, .82, fb(uv)) * smoothstep(0., .3, y); c = mix(c, vec3(1., .98, .95) * (.82 + .18 * fb(uv * 2.7)), cl * .85); }
       float s = max(0., dot(vD, sun)); c += vec3(1., .85, .6) * (pow(s, 700.) * 5. + pow(s, 8.) * .28); gl_FragColor = linearToOutputTexel(vec4(c, 1.)); }`,
   side: T.BackSide, depthWrite: false, fog: false,
 });
@@ -46,7 +50,7 @@ const lamp = new T.PointLight('#ffd7a0', 0, 24, 1.5); scene.add(lamp);
 const world = new World(scene);
 FX.init(scene); P.initVM(); POST.init();
 
-const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, squad: 0, cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
+const G = { state: 'boot', li: 0, L: null, lt: 0, time: 0, fired: new Set(), cool: {}, cocoons: 0, taken: [], cp: null, squad: 0, climb: 'assist', cine: null, boss: null, queen: null, unlocked: 1, diff: 1, qual: ('ontouchstart' in window) ? 1 : 2, target: null, stats: {} };
 const resetStats = () => { G.stats = { kills: 0, heads: 0, shots: 0, hits: 0, ahits: 0, time: 0, deaths: 0 }; };
 resetStats();
 
@@ -134,6 +138,7 @@ function chapterButtons() {
   for (const b of $('chapters').querySelectorAll('button')) b.onclick = () => { SFX.init(); resetStats(); P.reset(); story(+b.dataset.i); };
   for (const b of document.querySelectorAll('#diff button')) b.classList.toggle('on', +b.dataset.d === G.diff);
   for (const b of document.querySelectorAll('#squad button')) b.classList.toggle('on', +b.dataset.s === G.squad);
+  for (const b of document.querySelectorAll('.climbSeg button')) b.classList.toggle('on', b.dataset.c === G.climb);
   $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';
 }
 function titleScreen() {
@@ -203,6 +208,7 @@ $('bPlay').onclick = () => { SFX.init(); resetStats(); resetUpgrades(); SAVE.sav
 for (const b of document.querySelectorAll('#diff button')) b.onclick = () => { G.diff = +b.dataset.d; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.qual button')) b.onclick = () => { G.qual = +b.dataset.q; SAVE.save(); applyQuality(); };
 $('bStart').onclick = startCine;
+for (const b of document.querySelectorAll('.climbSeg button')) b.onclick = () => { G.climb = b.dataset.c; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('#squad button')) b.onclick = () => { G.squad = +b.dataset.s; SAVE.save(); chapterButtons(); };
 $('bResume').onclick = () => { G.state = 'play'; show(null); HUD.show(true); HUD.lock(); };
 $('bRestart').onclick = () => { P.reset(); loadLevel(G.li); play(); };
@@ -226,6 +232,7 @@ function frame(now) {
   if (G.state === 'play') {
     G.lt += dt; G.stats.time += dt;
     P.update(dt); EN.update(dt, false); ALLY.update(dt); PK.update(dt); FX.update(dt); runEvents(dt);
+    { const tg = G.target && G.target(); if (tg && Math.random() < dt * 10) { const ty = world.groundAt(tg.x, tg.z, (tg.y ?? 99) + 2); FX.glow.spawn(tg.x + rand(-.5, .5), ty + .2, tg.z + rand(-.5, .5), 0, rand(1.5, 3), 0, rand(1.5, 2.5), rand(.15, .3), FX.COL.spark, { a: .5 }); } }
     if (POST.bokeh && POST.on) { const d = new T.Vector3(); cam.getWorldDirection(d); const wb = world.rayBlock(cam.position, d, 60), h = EN.rayHit(cam.position, d, wb); POST.focus(h ? h.dist : wb, dt); }
     if (G.L.tick) G.L.tick(dt, G);
     if (G.state === 'play') HUD.objective(G.L.objective(G));
@@ -238,6 +245,7 @@ function frame(now) {
     EN.update(dt, true); FX.update(dt); FX.motes(dt, world.cave); if (G.L && G.L.tick) G.L.tick(dt, G);
   } else if (G.state === 'dead' || G.state === 'done') { FX.update(dt); EN.update(dt, true); }
   if (world.floor) world.update(G.time);
+  skyMat.uniforms.uTime.value = G.time;
   sun.target.position.set(Math.round(cam.position.x), 0, Math.round(cam.position.z));
   sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 100); sun.target.updateMatrixWorld();
   lamp.position.copy(cam.position); lamp.position.y += .3;

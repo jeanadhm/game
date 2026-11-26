@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: false, jump: false, wsel: 0, wheel: 0, locked: false, noLock: false, touch: false, mx: 0, my: 0, mrun: false };
 
 (() => {
-  const KEYMAP = { KeyW: 'f', KeyZ: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', KeyQ: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', ShiftLeft: 'run', ShiftRight: 'run' };
+  const KEYMAP = { KeyC: 'climb', KeyW: 'f', KeyZ: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', KeyQ: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', ShiftLeft: 'run', ShiftRight: 'run' };
   addEventListener('keydown', e => {
     const k = KEYMAP[e.code];
     if (k) IN.k[k] = true;
@@ -54,6 +54,7 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
   hold('tJump', () => { IN.jump = true; });
   hold('tWeap', () => { IN.wheel += 1; });
   hold('tShield', () => { IN.shieldPress = true; });
+  $('tClimb').addEventListener('pointerdown', e => { e.stopPropagation(); IN.k.climb = !IN.k.climb; $('tClimb').classList.toggle('on', !!IN.k.climb); });
   hold('tOrder', () => ALLY.command());
   hold('tRecall', () => ALLY.recall());
   hold('tPause', () => G.pause());

@@ -44,16 +44,16 @@ function grainTex(base, blobs, tint) {
     for (let i = 0; i < w * h; i++) { const v = base + Math.random() * (255 - base); d[i * 4] = v * tint[0]; d[i * 4 + 1] = v * tint[1]; d[i * 4 + 2] = v * tint[2]; d[i * 4 + 3] = 255; }
     g.putImageData(id, 0, 0);
     for (let i = 0; i < blobs; i++) {
-      const x = Math.random() * w, y = Math.random() * h, r = 1.5 + Math.random() ** 3 * 14, l = 140 + Math.random() * 115;
+      const x = Math.random() * w, y = Math.random() * h, r = 1 + Math.random() ** 3 * 9, l = 150 + Math.random() * 100;
       for (const ox of [-w, 0, w]) for (const oy of [-h, 0, h]) {
-        g.fillStyle = 'rgba(30,18,8,.16)'; g.beginPath(); g.ellipse(x + ox + r * .25, y + oy + r * .3, r, r * .75, 0, 0, 7); g.fill();
+        g.fillStyle = 'rgba(30,18,8,.09)'; g.beginPath(); g.ellipse(x + ox + r * .25, y + oy + r * .3, r, r * .75, 0, 0, 7); g.fill();
         g.fillStyle = `rgb(${l * tint[0] | 0},${l * tint[1] | 0},${l * tint[2] | 0})`; g.beginPath(); g.ellipse(x + ox, y + oy, r, r * .75, 0, 0, 7); g.fill();
       }
     }
   }, true);
 }
 function makeTextures() {
-  TEX.soil = grainTex(185, 300, [1, .95, .88]);
+  TEX.soil = grainTex(190, 520, [1, .95, .88]);
   TEX.rock = grainTex(165, 160, [1, 1, 1]);
   TEX.leaf = canvasTex(256, 512, (g, w, h) => {
     const gr = g.createLinearGradient(0, 0, w, 0);

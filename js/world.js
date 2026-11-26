@@ -52,6 +52,7 @@ class World {
     this.buildGround();
     const rng = mkRng(L.seed || 1);
     if (this.cave) this.decorCave(rng); else this.decorSurface(rng);
+    this.bakeAO();
     this.buildNav();
   }
 
@@ -90,6 +91,26 @@ class World {
     return { f, c, w };
   }
 
+  // distance à la piste de fourmis la plus proche (terre tassée qui mène à l'objectif)
+  trailDist(x, z) {
+    let best = 1e9;
+    for (const tr of this.L.trails || EMPTY) for (let i = 0; i < tr.length - 1; i++) {
+      const [ax, az] = tr[i], [bx, bz] = tr[i + 1], dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1);
+      best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t) + NOISE.n2(x * .3, z * .3) * .6);
+    }
+    return best;
+  }
+  // ombres de contact : le sol s'assombrit au pied des cailloux, brindilles, champignons et feuilles
+  bakeAO() {
+    if (!this.groundMesh) return;
+    const col = this.groundMesh.geometry.attributes.color, pos = this.groundMesh.geometry.attributes.position, n = this.n;
+    for (let i = 0; i < n * n; i++) {
+      const x = pos.getX(i), z = pos.getZ(i), f = this.floor[i]; let occ = 0;
+      for (const [ox, oz] of [[0, 0], [.8, 0], [-.8, 0], [0, .8], [0, -.8], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]]) { const t = this.objTop(x + ox, z + oz); if (t > f + .25) occ += ox === 0 && oz === 0 ? 2 : 1; }
+      if (occ) { const k = 1 - Math.min(.5, occ * .06); col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k); }
+    }
+    col.needsUpdate = true;
+  }
   buildGround() {
     const { n, S } = this, cave = this.cave, L = this.L;
     const geo = new T.PlaneGeometry(S, S, n - 1, n - 1); geo.rotateX(-Math.PI / 2);
@@ -103,6 +124,7 @@ class World {
         r = .24 * v; gg = .17 * v; b = .1 * v;
         if (g > .05) { const k = smoothstep(.05, .3, g) * .6; r = lerp(r, .13, k); gg = lerp(gg, .16, k); b = lerp(b, .06, k); }
         if (L.mound) { const dm = Math.hypot(x - L.mound.x, z - L.mound.z), k = smoothstep(L.mound.r * 1.15, L.mound.r * .6, dm); r = lerp(r, .34 * v, k); gg = lerp(gg, .14 * v, k); b = lerp(b, .07 * v, k); }
+        if (L.trails) { const k = smoothstep(2.6, 1.2, this.trailDist(x, z)) * .85; r = lerp(r, .3, k); gg = lerp(gg, .21, k); b = lerp(b, .13, k); }
       }
       col[i * 3] = r; col[i * 3 + 1] = gg; col[i * 3 + 2] = b;
     }
@@ -111,7 +133,7 @@ class World {
     TEX.soil.repeat.set(S / 7, S / 7);
     TEX.soilN.repeat.copy(TEX.soil.repeat);
     const mat = new T.MeshStandardMaterial({ map: TEX.soil, normalMap: TEX.soilN, normalScale: new T.Vector2(1.1, 1.1), vertexColors: true, roughness: .95 });
-    const m = new T.Mesh(geo, mat); m.receiveShadow = true; this.group.add(m);
+    const m = new T.Mesh(geo, mat); m.receiveShadow = true; this.group.add(m); this.groundMesh = m;
     if (cave) {
       const cg = geo.clone(), cp = cg.attributes.position, cc = cg.attributes.color;
       for (let i = 0; i < n * n; i++) { cp.setY(i, this.ceil[i]); cc.setXYZ(i, cc.getX(i) * .7, cc.getY(i) * .66, cc.getZ(i) * .62); }
@@ -367,7 +389,7 @@ class World {
   decorSurface(rng) {
     this.mush = [];
     const L = this.L, h = this.half, g = this.group; this.highSpots = [];
-    const clear = (x, z) => (L.clear || EMPTY).some(c => Math.hypot(x - c[0], z - c[1]) < c[2]);
+    const clear = (x, z) => (L.clear || EMPTY).some(c => Math.hypot(x - c[0], z - c[1]) < c[2]) || (L.trails && this.trailDist(x, z) < 2.4);
     // rochers
     const rockGeos = [0, 1, 2, 3].map(s => this.rockGeo(s * 7.3 + (L.seed || 1)));
     const rockCols = ['#8d8478', '#7a7268', '#9a8f80', '#6e675f'];
@@ -494,7 +516,7 @@ class World {
         tries++;
         let x, z;
         if (mode === 'in') { x = (rng() * 2 - 1) * this.half; z = (rng() * 2 - 1) * this.half; const dens = smoothstep(-.15, .35, NOISE.fbm(x / 28, z / 28, 3)); if (rng() > dens || clear(x, z)) continue; }
-        else if (mode === 'cover') { x = (rng() * 2 - 1) * this.half; z = (rng() * 2 - 1) * this.half; if (rng() > .25 + smoothstep(-.3, .3, NOISE.fbm(x / 20 + 4, z / 20, 3)) || this.objTop(x, z) > this.floorAt(x, z)) continue; }
+        else if (mode === 'cover') { x = (rng() * 2 - 1) * this.half; z = (rng() * 2 - 1) * this.half; if (rng() > .25 + smoothstep(-.3, .3, NOISE.fbm(x / 20 + 4, z / 20, 3)) || this.objTop(x, z) > this.floorAt(x, z) || (this.L.trails && this.trailDist(x, z) < 1.5)) continue; }
         else { x = (rng() * 2 - 1) * (this.half + 70); z = (rng() * 2 - 1) * (this.half + 70); if (Math.max(Math.abs(x), Math.abs(z)) < this.half - 6) continue; }
         const hh = minH + rng() * (maxH - minH), ww = minW + rng() * (maxW - minW);
         e.set((rng() - .5) * .3, rng() * 6.28, (rng() - .5) * .3); q.setFromEuler(e); s.set(ww, hh, hh * .5);

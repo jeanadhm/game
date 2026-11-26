@@ -44,7 +44,7 @@
 
 <div id="touch" hidden>
   <div id="stick" hidden><i></i></div>
-  <button id="tFire">Tir</button><button id="tJump">Saut</button><button id="tWeap">Arme</button><button id="tShield">Bouclier</button><button id="tOrder">Ordre</button><button id="tRecall">Rappel</button><button id="tPause" aria-label="Pause">II</button>
+  <button id="tFire">Tir</button><button id="tJump">Saut</button><button id="tWeap">Arme</button><button id="tShield">Bouclier</button><button id="tClimb">Grimper</button><button id="tOrder">Ordre</button><button id="tRecall">Rappel</button><button id="tPause" aria-label="Pause">II</button>
 </div>
 
 <section class="screen" id="title" hidden>
@@ -56,6 +56,7 @@
     <div class="opts">
       <div class="seg" id="diff"><span>Difficulté</span><button data-d="0">Facile</button><button data-d="1">Normal</button><button data-d="2">Difficile</button></div>
       <div class="seg qual"><span>Graphismes</span><button data-q="0">Basse</button><button data-q="1">Moyenne</button><button data-q="2">Haute</button></div>
+      <div class="seg climbSeg"><span>Escalade</span><button data-c="assist">Assistée (C)</button><button data-c="free">Libre</button></div>
       <div class="seg" id="squad"><span>Escouade</span><button data-s="0">Solo</button><button data-s="2">Avec 2 alliées</button></div>
     </div>
     <p class="nectT" id="nectTitle"></p>
@@ -69,13 +70,14 @@
         <div><dt>G · R</dt><dd>Ordre à l'escouade · rappel</dd></div>
         <div><dt>Maj</dt><dd>Courir</dd></div>
         <div><dt>Espace</dt><dd>Sauter, se détacher d'un mur ou du plafond</dd></div>
-        <div><dt>Avancer contre une paroi</dt><dd>Grimper (murs, plafonds, cailloux, feuilles)</dd></div>
+        <div><dt>Maintenir C</dt><dd>Grimper aux murs et au plafond</dd></div>
         <div><dt>Échap</dt><dd>Pause</dd></div>
       </dl>
       <p>Sur mobile : joystick à gauche, glisser à droite pour viser, boutons à l'écran.</p>
     </details>
     <details class="keys"><summary>Nouveautés</summary>
       <ul>
+        <li><b>v4.2</b> · Escalade maîtrisée (maintenir C), caméra plus stable, pistes de fourmis, repère d'objectif, ombres de contact, nuages</li>
         <li><b>v4.1</b> · Les fourmis ennemies ne s'enfoncent plus dans les murs ni dans les cailloux, et restent toujours touchables</li>
         <li><b>v4.0</b> · Escalade : on grimpe sur les murs, les cailloux, les feuilles et on marche au plafond la tête en bas</li>
         <li><b>v4.0</b> · Fourmilière rouge modélisée (dôme d'aiguilles de pin), rochers géants en bord de carte</li>
@@ -98,7 +100,7 @@
       </ul>
     </details>
   </div>
-  <p class="ver">v4.1</p>
+  <p class="ver">v4.2</p>
 </section>
 
 <section class="screen story" id="story" hidden>

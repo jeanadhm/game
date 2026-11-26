@@ -168,6 +168,8 @@ h2 { font: 700 clamp(34px, 6vw, 54px)/1 'Chakra Petch', sans-serif; margin: 0 0 
 #tOrder, #tRecall { width: 52px; height: 52px; font-size: 10px !important; left: max(18px, env(safe-area-inset-left, 0px)); }
 #tOrder { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 #tRecall { top: calc(env(safe-area-inset-top, 0px) + 210px); border-color: #ff8a5a !important; }
+#tClimb { width: 56px; height: 56px; right: max(180px, calc(env(safe-area-inset-right, 0px) + 170px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 40px); font-size: 11px !important; }
+#tClimb.on { background: #3a2c1a !important; border-color: #f2a93b !important; }
 #prompt { position: absolute; left: 50%; top: 66%; transform: translateX(-50%); background: #0b0907d0; border: 1px solid #a6ff3d; padding: 6px 14px; font-size: 15px; }
 #cine { position: fixed; inset: 0; z-index: 6; pointer-events: auto; cursor: pointer; }
 #cine i { position: absolute; left: 0; right: 0; height: 11vh; background: #000; }

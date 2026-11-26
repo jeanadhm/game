@@ -5,7 +5,7 @@ FPS 3D jouable dans le navigateur : une soldate fourmi noire affronte la colonie
 ## Jouer
 Ouvre `index.html` dans un navigateur (ou via GitHub Pages : https://jeanadhm.github.io/game/). Three.js (r128) est chargé depuis un CDN.
 
-Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, G pour donner un ordre à l'escouade, R pour la rappeler, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
+Contrôles : ZQSD / WASD pour bouger, souris pour viser, clic pour attaquer, clic droit ou F pour le bouclier, maintenir C pour grimper aux murs et au plafond, G pour donner un ordre à l'escouade, R pour la rappeler, 1 · 2 · 3 · 4 ou molette pour changer d'arme, Maj pour courir, Espace pour sauter, Échap pour la pause. Version tactile sur mobile.
 
 ## Contenu (v4.0)
 - 3 chapitres : La Prairie (surface), Les Galeries (terriers, 3 cocons à retrouver), La Chambre royale (boss Major Ignis)
@@ -55,6 +55,7 @@ python tools/build_nature.py models
 ```
 
 ## Versions
+- **v4.2** : escalade maîtrisée (maintenir C, mode Libre en option), caméra plus stable sur les murs, pistes de fourmis vers l'objectif, repère d'objectif, ombres de contact, nuages, vue épurée
 - **v4.1** : corps entier des fourmis gardé hors des murs et des objets, sorties de paroi, apparition toujours en zone libre, tirs qui touchent une fourmi collée à un mur
 - **v4.0** : escalade de toutes les surfaces, fourmilière modélisée, rochers en bord de carte ; corrections : arches qui bouchaient les tunnels (salle de la reine), ennemies bloquées par les plantes, traversée d'objets
 - **v3.1** : tout le décor modélisé dans Blender, collisions exactes sur ces modèles, ordres et rappel de l'escouade

@@ -119,7 +119,9 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     cam.position.copy(P.pos).addScaledVector(P.up, .66 + dip).addScaledVector(RT, sway);
     const fov = run && hs > 5 ? 82 : 74; if (Math.abs(cam.fov - fov) > .05) { cam.fov += (fov - cam.fov) * Math.min(1, dt * 6); cam.updateProjectionMatrix(); FX.setScale(renderer.domElement.height, cam.fov); }
     // orientation de la caméra : repère de la surface (droite, normale, avant), lissé, puis tangage
-    Mb.makeBasis(RT, P.up, O.copy(P.fwd).negate()); Qb.setFromRotationMatrix(Mb);
+    const kc = G.climb === 'free' ? 1 : P.up.y >= 0 ? .5 : .5 + .5 * Math.min(1, -P.up.y * 1.6);
+    const cu = RD2.copy(WUP).lerp(P.up, kc).normalize(), cf = O.copy(P.fwd).addScaledVector(cu, -P.fwd.dot(cu)).normalize(), cr = RD.crossVectors(cf, cu).normalize();
+    Mb.makeBasis(cr, cu, cf.negate()); Qb.setFromRotationMatrix(Mb);
     P.camQ.slerp(Qb, Math.min(1, dt * 12));
     E.set(P.pitch + (Math.random() - .5) * FX.shake * .03 + P.landT * .3, (Math.random() - .5) * FX.shake * .03, Math.sin(P.bobT * .5) * .01 * bob);
     cam.quaternion.copy(P.camQ).multiply(Qc.setFromEuler(E));
@@ -155,6 +157,8 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
 
   // --- marche sur toutes les surfaces : sol, pentes, murs, plafonds, cailloux, feuilles, champignons
   const WUP = new T.Vector3(0, 1, 0), RD = new T.Vector3(), RD2 = new T.Vector3(), O = new T.Vector3(), RT = new T.Vector3(), Mb = new T.Matrix4(), Qa = new T.Quaternion(), Qb = new T.Quaternion(), Qc = new T.Quaternion();
+  // en mode assisté, les surfaces raides (murs, plafonds) ne se grimpent qu'en maintenant C
+  const canClimb = n => n.y > .42 || G.climb === 'free' || IN.k.climb;
   function setUp(n, k) {
     const nu = O.copy(P.up).lerp(n, k).normalize();
     if (nu.lengthSq() < .5) return;
@@ -177,7 +181,14 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
         RD.copy(P.vel).normalize();
         // paroi devant (mur, caillou, bord de feuille) : on grimpe dessus au lieu de la traverser
         const h = world.raycast(O.copy(P.pos).addScaledVector(P.up, .22), RD, step + .36);
-        if (h && h.n.dot(P.up) < .8) { P.pos.copy(h.p); setUp(h.n, 1); climbed = true; if (!P.climbHint && h.n.y < .5) { P.climbHint = true; HUD.notice('Tu grimpes ! Espace pour sauter et te détacher', 2.5); } }
+        if (h && h.n.dot(P.up) < .8) {
+          if (canClimb(h.n)) { P.pos.copy(h.p); setUp(h.n, 1); climbed = true; }
+          else {
+            // paroi trop raide sans grimper : on glisse le long, sans la traverser
+            const vn = P.vel.dot(h.n); if (vn < 0) P.vel.addScaledVector(h.n, -vn);
+            if (!P.climbHint) { P.climbHint = true; HUD.notice(IN.touch ? 'Maintiens « Grimper » pour escalader les murs' : 'Maintiens C pour grimper aux murs et au plafond', 2.6); }
+          }
+        }
         else P.pos.addScaledVector(RD, step);
       }
       // rester collée à la surface sous les pattes
@@ -187,9 +198,11 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
         // arête : on bascule de l'autre côté (comme une fourmi qui passe le bord d'une feuille)
         RD.copy(P.vel.lengthSq() > 1e-6 ? P.vel : P.fwd).normalize().negate();
         g = world.raycast(O.copy(P.pos).addScaledVector(P.up, -.32), RD, .9);
-        if (g && g.n.dot(P.up) < .95) { P.pos.copy(g.p); setUp(g.n, 1); }
+        if (g && g.n.dot(P.up) < .95 && canClimb(g.n)) { P.pos.copy(g.p); setUp(g.n, 1); }
         else P.onGround = false;
       }
+      // sur un mur sans maintenir l'escalade : on se détache
+      if (P.onGround && !canClimb(P.up)) { P.onGround = false; P.vel.addScaledVector(P.up, 1.5); }
       if (P.up.y > .6) world.pushOut(P.pos, .38);
     } else {
       // en l'air : gravité du monde, la tête se redresse peu à peu
@@ -198,7 +211,8 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
       const d = P.vel.length() * dt;
       RD.copy(P.vel).normalize();
       const h = d > 1e-6 ? world.raycast(O.copy(P.pos).addScaledVector(P.up, .3), RD, d + .32) : null;
-      if (h) { P.pos.copy(h.p); setUp(h.n, 1); P.onGround = true; P.vel.addScaledVector(P.up, -P.vel.dot(P.up)).multiplyScalar(.5); }
+      if (h && canClimb(h.n)) { P.pos.copy(h.p); setUp(h.n, 1); P.onGround = true; P.vel.addScaledVector(P.up, -P.vel.dot(P.up)).multiplyScalar(.5); }
+      else if (h) { P.pos.copy(h.p).addScaledVector(h.n, .06); const vn = P.vel.dot(h.n); if (vn < 0) P.vel.addScaledVector(h.n, -vn * 1.2); }
       else { P.pos.addScaledVector(P.vel, dt); setUp(WUP, Math.min(1, dt * 3)); }
     }
     // filets de sécurité : jamais dans la roche, jamais hors de la carte
@@ -249,6 +263,8 @@ const VM = { scene: new T.Scene(), cam: new T.PerspectiveCamera(62, 1, .01, 20),
     const mb = VM.mBase || 0;
     VM.mand[0].rotation.y = lerp(VM.mand[0].rotation.y, -mb + o, Math.min(1, dt * 30));
     VM.mand[1].rotation.y = lerp(VM.mand[1].rotation.y, mb - o, Math.min(1, dt * 30));
+    for (const a of VM.antn) a.visible = false;
+    for (const m of VM.mand) m.visible = P.weapon === 1 || P.biteT > 0;
     for (let k = 0; k < 2; k++) { VM.antn[k].rotation.x = Math.sin(t * 2.1 + k) * .06 + hs * .006; VM.antn[k].rotation.y = Math.sin(t * 1.4 + k * 2) * .05; }
     VM.glow.material.opacity = P.weapon === 2 ? .25 + P.glowT * .75 + Math.sin(t * 5) * .05 : 0;
     VM.seed.visible = P.weapon === 3 && P.seeds > 0 && P.cd < .3;
