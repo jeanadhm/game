@@ -145,6 +145,7 @@ function chapterButtons() {
   for (const b of document.querySelectorAll('.climbSeg button')) b.classList.toggle('on', b.dataset.c === G.climb);
   for (const b of document.querySelectorAll('.mouseSeg button')) b.classList.toggle('on', b.dataset.m === G.mouse);
   for (const b of document.querySelectorAll('.viewSeg button')) b.classList.toggle('on', b.dataset.v === G.view);
+  $('bView').textContent = (G.view === 'fps' ? 'Vue : 1re personne' : 'Vue : 3e personne') + (IN.touch ? '' : ' · T');
   document.body.classList.toggle('freemouse', G.mouse !== 'lock');
   $('bOpenCont').disabled = !OW.hasSave(); $('bRestart').hidden = false;
   $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';
@@ -194,7 +195,7 @@ function play() {
   SFX.init(); G.state = 'play'; show(null); HUD.show(true); if (!IN.locked) HUD.lock();
   if (G.mouse !== 'lock' && !IN.touch && !G.mouseHint) { G.mouseHint = true; HUD.notice('Souris libre : bouge la souris pour regarder, pousse-la au bord pour tourner · Échap : pause', 3.5); }
 }
-G.pause = () => { if (G.state !== 'play') return; $('bRestart').hidden = G.mode === 'open'; G.state = 'pause'; IN.fire = false; IN.k = {}; show('pause'); HUD.show(false); if (document.pointerLockElement) document.exitPointerLock(); };
+G.pause = () => { if (G.state !== 'play') return; chapterButtons(); $('bRestart').hidden = G.mode === 'open'; G.state = 'pause'; IN.fire = false; IN.k = {}; show('pause'); HUD.show(false); if (document.pointerLockElement) document.exitPointerLock(); };
 G.die = () => {
   if (G.mode === 'open') {
     // monde ouvert : on se réveille à la fourmilière, sans ce qu'on portait
@@ -224,6 +225,10 @@ for (const b of document.querySelectorAll('#diff button')) b.onclick = () => { G
 for (const b of document.querySelectorAll('.qual button')) b.onclick = () => { G.qual = +b.dataset.q; SAVE.save(); applyQuality(); };
 $('bStart').onclick = startCine;
 for (const b of document.querySelectorAll('.viewSeg button')) b.onclick = () => { G.view = b.dataset.v; SAVE.save(); chapterButtons(); };
+G.toggleView = () => { G.view = G.view === 'fps' ? 'tps' : 'fps'; SAVE.save(); chapterButtons(); HUD.notice(G.view === 'fps' ? 'Vue à la première personne' : 'Vue à la troisième personne', 1.4); };
+$('bView').addEventListener('mousedown', e => e.stopPropagation());
+$('bView').addEventListener('pointerdown', e => e.stopPropagation());
+$('bView').onclick = e => { e.stopPropagation(); G.toggleView(); };
 for (const b of document.querySelectorAll('.mouseSeg button')) b.onclick = () => { G.mouse = b.dataset.m; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('.climbSeg button')) b.onclick = () => { G.climb = b.dataset.c; SAVE.save(); chapterButtons(); };
 for (const b of document.querySelectorAll('#squad button')) b.onclick = () => { G.squad = +b.dataset.s; SAVE.save(); chapterButtons(); };

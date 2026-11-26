@@ -175,6 +175,10 @@ h2 { font: 700 clamp(34px, 6vw, 54px)/1 'Chakra Petch', sans-serif; margin: 0 0 
 .bar.wings label, .bar.wings b { color: #c9b8ff; } .bar.wings b { font-size: 12px; }
 body.playing.freemouse #c { cursor: crosshair; }
 #tFly { width: 52px; height: 52px; right: max(250px, calc(env(safe-area-inset-right, 0px) + 240px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 40px); font-size: 11px !important; border-color: #c9b8ff !important; }
+#bView { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 122px); width: auto; margin: 0; padding: 6px 12px; font-size: 13px; pointer-events: auto; background: #0b0907c0; border-color: #ffffff40; }
+#bView:hover { border-color: #f2a93b; }
+body.touch #bView { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 240px); right: max(18px, env(safe-area-inset-right, 0px)); }
+.card.small .seg span { width: 80px; }
 #prompt { position: absolute; left: 50%; top: 66%; transform: translateX(-50%); background: #0b0907d0; border: 1px solid #a6ff3d; padding: 6px 14px; font-size: 15px; }
 #cine { position: fixed; inset: 0; z-index: 6; pointer-events: auto; cursor: pointer; }
 #cine i { position: absolute; left: 0; right: 0; height: 11vh; background: #000; }

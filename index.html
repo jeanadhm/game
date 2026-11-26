@@ -35,6 +35,7 @@
   </div>
   <div id="boss" hidden><b id="bossName"></b><div class="track"><div id="bossBar"></div></div></div>
   <div id="dlg" hidden><b id="dlgWho"></b><p id="dlgText"></p></div>
+  <button id="bView" title="Changer de vue (T)">Vue : 3e personne · T</button>
   <div id="allies"></div>
   <div id="colbar" hidden></div>
   <canvas id="mini" width="320" height="320" hidden></canvas>
@@ -114,7 +115,7 @@
       </ul>
     </details>
   </div>
-  <p class="ver">v5.3</p>
+  <p class="ver">v5.4</p>
 </section>
 
 <section class="screen story" id="story" hidden>
@@ -132,6 +133,9 @@
     <h2>Pause</h2>
     <button id="bResume" class="primary">Reprendre</button>
     <button id="bRestart">Recommencer le chapitre</button>
+    <div class="seg viewSeg"><span>Vue</span><button data-v="tps">3e personne</button><button data-v="fps">1re personne</button></div>
+    <div class="seg mouseSeg"><span>Souris</span><button data-m="free">Libre</button><button data-m="lock">Capturée</button></div>
+    <div class="seg climbSeg"><span>Escalade</span><button data-c="assist">Assistée (C)</button><button data-c="free">Libre</button></div>
     <div class="seg qual"><span>Graphismes</span><button data-q="0">Basse</button><button data-q="1">Moyenne</button><button data-q="2">Haute</button></div>
     <label class="sens">Sensibilité de la souris<input id="sens" type="range" min=".3" max="2.5" step=".1" value="1"></label>
     <button id="bMenu">Menu principal</button>
