@@ -145,7 +145,7 @@ function chapterButtons() {
   for (const b of document.querySelectorAll('.climbSeg button')) b.classList.toggle('on', b.dataset.c === G.climb);
   for (const b of document.querySelectorAll('.mouseSeg button')) b.classList.toggle('on', b.dataset.m === G.mouse);
   for (const b of document.querySelectorAll('.viewSeg button')) b.classList.toggle('on', b.dataset.v === G.view);
-  $('bView').textContent = IN.touch ? (G.view === 'fps' ? 'Vue 1re' : 'Vue 3e') : (G.view === 'fps' ? 'Vue : 1re personne' : 'Vue : 3e personne') + ' · T';
+  if (IN.touch) TOUCHUI.label('bView', G.view === 'fps' ? 'Vue 1re' : 'Vue 3e'); else $('bView').textContent = (G.view === 'fps' ? 'Vue : 1re personne' : 'Vue : 3e personne') + ' · T';
   document.body.classList.toggle('freemouse', G.mouse !== 'lock');
   $('bOpenCont').disabled = !OW.hasSave(); $('bRestart').hidden = false;
   $('nectTitle').textContent = UP.nectar ? `Nectar en réserve : ${UP.nectar}` : '';

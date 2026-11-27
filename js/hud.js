@@ -44,7 +44,7 @@ const IN = { k: {}, dx: 0, dy: 0, shieldPress: false, fire: false, firePress: fa
 
   // tactile : joystick à gauche, visée à droite, boutons
   const stick = $('stick'), knob = stick.firstElementChild; let sid = null, sx = 0, sy = 0, lid = null, lx = 0, ly = 0;
-  addEventListener('touchstart', () => { if (!IN.touch) { IN.touch = true; document.body.classList.add('touch'); if (G.state === 'play') $('touch').hidden = false; } }, { passive: true });
+  addEventListener('touchstart', () => { if (!IN.touch) { IN.touch = true; document.body.classList.add('touch'); TOUCHUI.init(); if (G.state === 'play') $('touch').hidden = false; } }, { passive: true });
   $('tzone').addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') return;
     if (e.clientX < innerWidth * .45 && sid === null) { sid = e.pointerId; sx = e.clientX; sy = e.clientY; stick.style.left = sx + 'px'; stick.style.top = sy + 'px'; stick.hidden = false; }
@@ -109,9 +109,9 @@ const HUD = (() => {
       if (ar !== lastAr) { lastAr = ar; $('arBar').style.width = ar + '%'; $('arNum').textContent = ar; }
       const w = WEAPONS[P.weapon].name; if (w !== lastW) { lastW = w; $('wName').textContent = w; slots.forEach((s, i) => s.classList.toggle('on', i + 1 === P.weapon)); }
       const am = P.weapon === 1 ? '∞' : P.weapon === 2 ? Math.floor(P.acid) + '%' : P.weapon === 3 ? P.seeds + ' / 6' : P.darts + ' / 8';
-      if (am !== lastAmmo) { lastAmmo = am; $('wAmmo').textContent = am; if (IN.touch) $('tWeap').innerHTML = ['', 'Mandib.', 'Acide', 'Graine', 'Dard'][P.weapon] + '<br>' + am; }
+      if (am !== lastAmmo) { lastAmmo = am; $('wAmmo').textContent = am; if (IN.touch) TOUCHUI.label('tWeap', ['', 'Mandib.', 'Acide', 'Graine', 'Dard'][P.weapon] + ' ' + am); }
       document.body.classList.toggle('squad', ALLY.list.some(a => !a.guard));
-      if (IN.touch) { const vt = G.view === 'fps' ? 'Vue 1re' : 'Vue 3e'; if ($('bView').textContent !== vt) $('bView').textContent = vt; }
+      if (IN.touch) TOUCHUI.label('bView', G.view === 'fps' ? 'Vue 1re' : 'Vue 3e');
       document.body.classList.toggle('openw', G.mode === 'open');
       $('acidBar').style.width = P.acid + '%';
       $('wingBar').style.width = (P.wing ?? 100) + '%'; $('wingBar').className = P.flying ? 'on' : '';

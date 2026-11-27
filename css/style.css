@@ -290,3 +290,29 @@ body.touch:not(.openw) #touch #tAct { display: none; }
   body.touch #allies { bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); }
 }
 body.touch #touch button, body.touch #bView { padding: 0 !important; text-align: center; overflow: hidden; letter-spacing: -.02em; }
+
+/* --- boutons tactiles : icône + libellé centrés, couleur par action, réglables --- */
+.touchOnly { display: none !important; } body.touch .touchOnly { display: block !important; }
+body.touch .tbtn { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0 !important;
+  color: var(--c, #f3ead8); background: radial-gradient(circle at 50% 35%, rgba(40,34,26,.82), rgba(11,9,7,.78)) !important;
+  border: 1.5px solid color-mix(in srgb, var(--c, #fff) 55%, transparent) !important; border-radius: 50% !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08); opacity: var(--ba, .85);
+  transform: scale(var(--bs, 1)); transition: transform .08s, background .08s; -webkit-tap-highlight-color: transparent; text-align: center; }
+body.touch .tbtn svg { width: 42%; height: 42%; max-width: 30px; max-height: 30px; flex: none; }
+body.touch .tbtn span { display: block; font: 700 9px/1 'Chakra Petch', sans-serif; color: #f3ead8; max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+body.touch .tbtn:active { transform: scale(calc(var(--bs, 1) * .9)); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--c, #fff) 35%, #1a1612), rgba(11,9,7,.85)) !important; }
+body.touch #touch #tFire span { font-size: 11px; } body.touch #touch #tFire svg { max-width: 34px; max-height: 34px; }
+body.touch #touch #tPause svg { width: 50%; height: 50%; }
+body.touch .tbtn.placed { position: fixed !important; translate: -50% -50%; }
+body.touch #touch #tAct { font-size: 9px !important; }
+/* éditeur de disposition */
+#layoutBar { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); translate: -50% 0; z-index: 12; width: min(320px, calc(100vw - 32px)); background: #0b0907ee; border: 1px solid #f2a93b; padding: 12px; display: grid; gap: 8px; font-size: 13px; }
+#layoutBar p { margin: 0; color: #e6dcc8; }
+#layoutBar label { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 8px; }
+#layoutBar input { accent-color: #f2a93b; }
+#layoutBar div { display: flex; gap: 8px; } #layoutBar div button { margin: 0; padding: 8px; text-align: center; font-size: 14px; }
+body.editing #touch, body.editing #touch .tbtn, body.editing #bView { display: flex !important; pointer-events: auto; }
+body.editing .tbtn { outline: 1.5px dashed rgba(242,169,59,.7); outline-offset: 3px; touch-action: none; }
+body.editing .tbtn.dragging { outline-color: #a6ff3d; z-index: 20; }
+body.editing #tzone { display: none !important; }
+body.editing #hud { display: block !important; } body.editing #hud > *:not(#bView) { display: none !important; }

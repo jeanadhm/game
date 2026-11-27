@@ -47,6 +47,13 @@
 
 <div id="cine" hidden><i class="bar1"></i><i class="bar2"></i><p id="cineText"></p><span>Clic ou Espace pour passer</span></div>
 
+<div id="layoutBar" hidden>
+  <p>Glisse les boutons où tu veux. La disposition est gardée pour cette orientation.</p>
+  <label>Taille <input id="lScale" type="range" min=".7" max="1.4" step=".05" value="1"></label>
+  <label>Opacité <input id="lAlpha" type="range" min=".3" max="1" step=".05" value=".85"></label>
+  <div><button id="lReset">Réinitialiser</button><button id="lDone" class="primary">Terminer</button></div>
+</div>
+
 <div id="touch" hidden>
   <div id="stick" hidden><i></i></div>
   <button id="tFire">Tir</button><button id="tJump">Saut</button><button id="tWeap">Arme</button><button id="tShield">Bouclier</button><button id="tClimb">Grimper</button><button id="tFly">Voler</button><button id="tOrder">Ordre</button><button id="tAct">E</button><button id="tCol">Colonie</button><button id="tMap">Carte</button><button id="tRecall">Rappel</button><button id="tPause" aria-label="Pause">II</button>
@@ -115,7 +122,7 @@
       </ul>
     </details>
   </div>
-  <p class="ver">v5.5</p>
+  <p class="ver">v5.6</p>
 </section>
 
 <section class="screen story" id="story" hidden>
@@ -137,6 +144,7 @@
     <div class="seg mouseSeg"><span>Souris</span><button data-m="free">Libre</button><button data-m="lock">Capturée</button></div>
     <div class="seg climbSeg"><span>Escalade</span><button data-c="assist">Assistée (C)</button><button data-c="free">Libre</button></div>
     <div class="seg qual"><span>Graphismes</span><button data-q="0">Basse</button><button data-q="1">Moyenne</button><button data-q="2">Haute</button></div>
+    <button id="bLayout" class="touchOnly">Disposition des boutons</button>
     <label class="sens">Sensibilité de la souris<input id="sens" type="range" min=".3" max="2.5" step=".1" value="1"></label>
     <button id="bMenu">Menu principal</button>
   </div>
@@ -208,6 +216,7 @@
 <script src="js/allies.js"></script>
 <script src="js/player.js"></script>
 <script src="js/hud.js"></script>
+<script src="js/touchui.js"></script>
 <script src="js/upgrades.js"></script>
 <script src="js/post.js"></script>
 <script src="js/levels.js"></script>

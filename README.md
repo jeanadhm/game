@@ -61,6 +61,7 @@ python tools/build_nature.py models
 ```
 
 ## Versions
+- **v5.6** : boutons tactiles avec icônes centrées et couleurs par action ; éditeur de disposition (pause > Disposition des boutons : glisser, taille, opacité, réinitialiser), gardé par orientation
 - **v5.3** : garde du nid (jusqu'à 8 soldates patrouillent et attaquent les intruses), raideuses qui marchent sur la fourmilière, ouvrières attaquables qui fuient le danger, ennemies qui ne visent plus en priorité la joueuse
 - **v5.2** : vue à la troisième personne par défaut (la fourmi est visible : marche, escalade, porte, vole), caméra qui évite le décor, tirs depuis la tête vers le viseur ; T pour passer à la première personne
 - **v5.1** : plus de traversée des surfaces (dômes, champignons, cailloux), on enjambe feuilles, bosses et brindilles, caméra droite et lissée, caméra abaissée sous les objets bas, souris libre par défaut (capture en option), vol (V)
