@@ -109,7 +109,10 @@ const HUD = (() => {
       if (ar !== lastAr) { lastAr = ar; $('arBar').style.width = ar + '%'; $('arNum').textContent = ar; }
       const w = WEAPONS[P.weapon].name; if (w !== lastW) { lastW = w; $('wName').textContent = w; slots.forEach((s, i) => s.classList.toggle('on', i + 1 === P.weapon)); }
       const am = P.weapon === 1 ? '∞' : P.weapon === 2 ? Math.floor(P.acid) + '%' : P.weapon === 3 ? P.seeds + ' / 6' : P.darts + ' / 8';
-      if (am !== lastAmmo) { lastAmmo = am; $('wAmmo').textContent = am; }
+      if (am !== lastAmmo) { lastAmmo = am; $('wAmmo').textContent = am; if (IN.touch) $('tWeap').innerHTML = ['', 'Mandib.', 'Acide', 'Graine', 'Dard'][P.weapon] + '<br>' + am; }
+      document.body.classList.toggle('squad', ALLY.list.some(a => !a.guard));
+      if (IN.touch) { const vt = G.view === 'fps' ? 'Vue 1re' : 'Vue 3e'; if ($('bView').textContent !== vt) $('bView').textContent = vt; }
+      document.body.classList.toggle('openw', G.mode === 'open');
       $('acidBar').style.width = P.acid + '%';
       $('wingBar').style.width = (P.wing ?? 100) + '%'; $('wingBar').className = P.flying ? 'on' : '';
       if (G.mouse !== 'lock' && !IN.touch && IN.cx != null && G.state === 'play') { const m = 60, w = innerWidth; if (IN.cx < m) IN.dx -= (m - IN.cx) / m * 900 * dt; else if (IN.cx > w - m) IN.dx += (IN.cx - (w - m)) / m * 900 * dt; }
